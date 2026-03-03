@@ -1,0 +1,616 @@
+{
+    "_meta": {
+        "description": "PCPartPicker port/connector image URL lookup table",
+        "source": "pcpartpicker.com/static/forever/img/ports/",
+        "usage": "Match user query keywords against the 'keywords' array to return the corresponding 'url'"
+    },
+    "categories": {
+        "atx_power": {
+            "label": "ATX Power Connectors",
+            "entries": [
+                {
+                    "id": "24pin_atx_socket",
+                    "keywords": [
+                        "24-pin",
+                        "24 pin",
+                        "atx",
+                        "24-pin atx",
+                        "motherboard power",
+                        "main power"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/24-pin_ATX.png",
+                    "description": "24-pin ATX motherboard power socket"
+                },
+                {
+                    "id": "24pin_atx_plug",
+                    "keywords": [
+                        "24-pin plug",
+                        "24 pin plug",
+                        "atx plug",
+                        "24-pin atx plug",
+                        "motherboard power plug"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/24pinATXPlug.png",
+                    "description": "24-pin ATX motherboard power plug (cable side)"
+                },
+                {
+                    "id": "4pin_atx_socket",
+                    "keywords": [
+                        "4-pin atx",
+                        "4 pin atx",
+                        "atx 4-pin",
+                        "cpu power 4-pin"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/4-pin_ATX.png",
+                    "description": "4-pin ATX power socket"
+                },
+                {
+                    "id": "4pin_atx_plug",
+                    "keywords": [
+                        "4-pin atx plug",
+                        "4 pin atx plug"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/4pinATXPlug.png",
+                    "description": "4-pin ATX power plug (cable side)"
+                }
+            ]
+        },
+        "eps_power": {
+            "label": "EPS Power Connectors",
+            "entries": [
+                {
+                    "id": "8pin_eps_socket",
+                    "keywords": [
+                        "8-pin eps",
+                        "8 pin eps",
+                        "eps",
+                        "cpu power",
+                        "eps12v"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/8-pin_EPS.png",
+                    "description": "8-pin EPS CPU power socket"
+                },
+                {
+                    "id": "8pin_eps_plug",
+                    "keywords": [
+                        "8-pin eps plug",
+                        "8 pin eps plug",
+                        "eps plug",
+                        "cpu power plug"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/8pinEPSPlug.png",
+                    "description": "8-pin EPS CPU power plug (cable side)"
+                }
+            ]
+        },
+        "pcie_power": {
+            "label": "PCIe Power Connectors",
+            "entries": [
+                {
+                    "id": "6pin_pcie_socket",
+                    "keywords": [
+                        "6-pin pcie",
+                        "6 pin pcie",
+                        "6-pin pcie power",
+                        "gpu power 6-pin"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/6-pin_PCIe.png",
+                    "description": "6-pin PCIe power socket"
+                },
+                {
+                    "id": "6pin_pcie_plug",
+                    "keywords": [
+                        "6-pin pcie plug",
+                        "6 pin pcie plug",
+                        "gpu power 6-pin plug"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/6pinPCIePlug.png",
+                    "description": "6-pin PCIe power plug (cable side)"
+                },
+                {
+                    "id": "6p2pin_pcie_plug",
+                    "keywords": [
+                        "6+2 pin",
+                        "6+2 pcie",
+                        "6+2 pin pcie plug",
+                        "8-pin pcie combo",
+                        "6 plus 2"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/6p2pinPCIePlug.png",
+                    "description": "6+2-pin PCIe power plug (cable side)"
+                },
+                {
+                    "id": "8pin_pcie_socket",
+                    "keywords": [
+                        "8-pin pcie",
+                        "8 pin pcie",
+                        "8-pin pcie power",
+                        "gpu power 8-pin"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/8-pin_PCIe.png",
+                    "description": "8-pin PCIe power socket"
+                },
+                {
+                    "id": "8pin_pcie_plug",
+                    "keywords": [
+                        "8-pin pcie plug",
+                        "8 pin pcie plug",
+                        "gpu power 8-pin plug"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/8pinPCIePlug.png",
+                    "description": "8-pin PCIe power plug (cable side)"
+                },
+                {
+                    "id": "12pin_pcie",
+                    "keywords": [
+                        "12-pin",
+                        "12 pin",
+                        "12-pin pcie",
+                        "nvidia 12-pin",
+                        "founders edition power"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/12-pin_PCIe.png",
+                    "description": "12-pin PCIe power connector (Nvidia FE)"
+                },
+                {
+                    "id": "16pin_pcie_gen5_socket",
+                    "keywords": [
+                        "16-pin",
+                        "16 pin",
+                        "12vhpwr",
+                        "12v-2x6",
+                        "pcie gen5 power",
+                        "16-pin pcie",
+                        "atx 3.0"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/16-pin_PCIe_Gen5.png",
+                    "description": "16-pin PCIe Gen5 (12VHPWR) power socket"
+                },
+                {
+                    "id": "16pin_pcie_gen5_plug",
+                    "keywords": [
+                        "16-pin plug",
+                        "12vhpwr plug",
+                        "12v-2x6 plug",
+                        "16-pin pcie plug",
+                        "atx 3.0 plug"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/16-pin_PCIe_Gen5Plug.png",
+                    "description": "16-pin PCIe Gen5 (12VHPWR) power plug (cable side)"
+                }
+            ]
+        },
+        "peripheral_power": {
+            "label": "Peripheral / Legacy Power Connectors",
+            "entries": [
+                {
+                    "id": "4pin_molex",
+                    "keywords": [
+                        "molex",
+                        "4-pin molex",
+                        "4 pin molex",
+                        "molex power",
+                        "peripheral power"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/4-pin_Molex.png",
+                    "description": "4-pin Molex peripheral power connector"
+                },
+                {
+                    "id": "molex_power",
+                    "keywords": [
+                        "molex plug",
+                        "molex cable",
+                        "molex power plug"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/MolexPower.png",
+                    "description": "Molex power connector (alternate view)"
+                },
+                {
+                    "id": "sata_power_socket",
+                    "keywords": [
+                        "sata power",
+                        "sata power socket",
+                        "sata power connector"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/SATAPower.png",
+                    "description": "SATA power socket"
+                },
+                {
+                    "id": "sata_power_plug",
+                    "keywords": [
+                        "sata power plug",
+                        "sata power cable"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/SATAPowerPlug.png",
+                    "description": "SATA power plug (cable side)"
+                }
+            ]
+        },
+        "data_connectors": {
+            "label": "Data Connectors",
+            "entries": [
+                {
+                    "id": "sata_data",
+                    "keywords": [
+                        "sata",
+                        "sata data",
+                        "sata cable",
+                        "sata port",
+                        "sata connector"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/SATA.png",
+                    "description": "SATA data connector"
+                },
+                {
+                    "id": "ide",
+                    "keywords": [
+                        "ide",
+                        "pata",
+                        "ide cable",
+                        "ribbon cable",
+                        "40-pin ide"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/IDE.png",
+                    "description": "IDE (PATA) data connector"
+                },
+                {
+                    "id": "u2",
+                    "keywords": [
+                        "u.2",
+                        "u-2",
+                        "u2",
+                        "sff-8639",
+                        "u.2 connector"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/U-2.png",
+                    "description": "U.2 (SFF-8639) connector"
+                }
+            ]
+        },
+        "pcie_slots": {
+            "label": "PCIe Expansion Slots",
+            "entries": [
+                {
+                    "id": "pcie_x1",
+                    "keywords": [
+                        "pcie x1",
+                        "pci-e x1",
+                        "pcie 1x",
+                        "pcie x1 slot"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/PCIe_x1.png",
+                    "description": "PCIe x1 slot"
+                },
+                {
+                    "id": "pcie_x1_open",
+                    "keywords": [
+                        "pcie x1 open",
+                        "pcie x1 open-ended",
+                        "pcie x1 open end"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/PCIe_x1_open.png",
+                    "description": "PCIe x1 slot (open-ended)"
+                },
+                {
+                    "id": "pcie_x4",
+                    "keywords": [
+                        "pcie x4",
+                        "pci-e x4",
+                        "pcie 4x",
+                        "pcie x4 slot"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/PCIe_x4.png",
+                    "description": "PCIe x4 slot"
+                },
+                {
+                    "id": "pcie_x4_open",
+                    "keywords": [
+                        "pcie x4 open",
+                        "pcie x4 open-ended"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/PCIe_x4_open.png",
+                    "description": "PCIe x4 slot (open-ended)"
+                },
+                {
+                    "id": "pcie_x8",
+                    "keywords": [
+                        "pcie x8",
+                        "pci-e x8",
+                        "pcie 8x",
+                        "pcie x8 slot"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/PCIe_x8.png",
+                    "description": "PCIe x8 slot"
+                },
+                {
+                    "id": "pcie_x8_open",
+                    "keywords": [
+                        "pcie x8 open",
+                        "pcie x8 open-ended"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/PCIe_x8_open.png",
+                    "description": "PCIe x8 slot (open-ended)"
+                },
+                {
+                    "id": "pcie_x16",
+                    "keywords": [
+                        "pcie x16",
+                        "pci-e x16",
+                        "pcie 16x",
+                        "pcie x16 slot",
+                        "gpu slot",
+                        "graphics card slot"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/PCIe_x16.png",
+                    "description": "PCIe x16 slot"
+                },
+                {
+                    "id": "pci",
+                    "keywords": [
+                        "pci",
+                        "pci slot",
+                        "pci legacy",
+                        "pci conventional"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/PCI.png",
+                    "description": "PCI slot (legacy)"
+                },
+                {
+                    "id": "pci_x",
+                    "keywords": [
+                        "pci-x",
+                        "pcix",
+                        "pci-x slot"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/PCI-X.png",
+                    "description": "PCI-X slot"
+                },
+                {
+                    "id": "mini_pcie",
+                    "keywords": [
+                        "mini pcie",
+                        "mini pci-e",
+                        "mini pci express",
+                        "mpcie"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/Mini_PCIe.png",
+                    "description": "Mini PCIe slot"
+                }
+            ]
+        },
+        "m2_slots": {
+            "label": "M.2 Slots",
+            "entries": [
+                {
+                    "id": "m2_m_key",
+                    "keywords": [
+                        "m.2",
+                        "m2",
+                        "m.2 m key",
+                        "m2 m",
+                        "nvme slot",
+                        "m.2 nvme",
+                        "m.2 ssd slot"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/M2_M.png",
+                    "description": "M.2 M-key slot (NVMe/SATA)"
+                },
+                {
+                    "id": "m2_b_key",
+                    "keywords": [
+                        "m.2 b key",
+                        "m2 b",
+                        "m.2 b",
+                        "b key"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/M2_B.png",
+                    "description": "M.2 B-key slot"
+                },
+                {
+                    "id": "m2_e_key",
+                    "keywords": [
+                        "m.2 e key",
+                        "m2 e",
+                        "m.2 e",
+                        "e key",
+                        "m.2 wifi",
+                        "wifi slot"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/M2_E.png",
+                    "description": "M.2 E-key slot (WiFi/Bluetooth)"
+                }
+            ]
+        },
+        "cpu_sockets": {
+            "label": "CPU Sockets",
+            "entries": [
+                {
+                    "id": "amd_am1",
+                    "keywords": [
+                        "am1",
+                        "amd am1",
+                        "socket am1"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/AMD_AM1.png",
+                    "description": "AMD AM1 socket"
+                },
+                {
+                    "id": "amd_am2",
+                    "keywords": [
+                        "am2",
+                        "amd am2",
+                        "socket am2",
+                        "am2+",
+                        "am3",
+                        "am3+"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/AMD_AM2.png",
+                    "description": "AMD AM2/AM2+/AM3/AM3+ socket"
+                },
+                {
+                    "id": "amd_am4",
+                    "keywords": [
+                        "am4",
+                        "amd am4",
+                        "socket am4",
+                        "ryzen socket"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/AMD_AM4.png",
+                    "description": "AMD AM4 socket"
+                },
+                {
+                    "id": "amd_fm1",
+                    "keywords": [
+                        "fm1",
+                        "amd fm1",
+                        "socket fm1"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/AMD_FM1.png",
+                    "description": "AMD FM1 socket"
+                },
+                {
+                    "id": "amd_fm2",
+                    "keywords": [
+                        "fm2",
+                        "amd fm2",
+                        "socket fm2",
+                        "fm2+"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/AMD_FM2.png",
+                    "description": "AMD FM2/FM2+ socket"
+                },
+                {
+                    "id": "amd_str4",
+                    "keywords": [
+                        "str4",
+                        "strx4",
+                        "tr4",
+                        "threadripper",
+                        "amd str4",
+                        "socket str4",
+                        "socket tr4"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/AMD_STR4.png",
+                    "description": "AMD sTR4/sTRX4 socket (Threadripper)"
+                },
+                {
+                    "id": "intel_lga1150",
+                    "keywords": [
+                        "lga1150",
+                        "lga 1150",
+                        "1150",
+                        "socket 1150",
+                        "haswell socket"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/Intel_LGA1150.png",
+                    "description": "Intel LGA 1150 socket"
+                },
+                {
+                    "id": "intel_lga1356",
+                    "keywords": [
+                        "lga1356",
+                        "lga 1356",
+                        "1356",
+                        "socket 1356"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/Intel_LGA1356.png",
+                    "description": "Intel LGA 1356 socket"
+                },
+                {
+                    "id": "intel_lga1700",
+                    "keywords": [
+                        "lga1700",
+                        "lga 1700",
+                        "1700",
+                        "socket 1700",
+                        "alder lake socket",
+                        "raptor lake socket"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/Intel_LGA1700.png",
+                    "description": "Intel LGA 1700 socket"
+                },
+                {
+                    "id": "intel_lga2011",
+                    "keywords": [
+                        "lga2011",
+                        "lga 2011",
+                        "2011",
+                        "socket 2011",
+                        "lga2011-v3"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/Intel_LGA2011.png",
+                    "description": "Intel LGA 2011 socket"
+                },
+                {
+                    "id": "intel_lga2066",
+                    "keywords": [
+                        "lga2066",
+                        "lga 2066",
+                        "2066",
+                        "socket 2066"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/Intel_LGA2066.png",
+                    "description": "Intel LGA 2066 socket"
+                }
+            ]
+        },
+        "memory": {
+            "label": "Memory Slots",
+            "entries": [
+                {
+                    "id": "ddr4",
+                    "keywords": [
+                        "ddr4",
+                        "ddr4 slot",
+                        "ddr4 dimm",
+                        "ram slot",
+                        "memory slot"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/DDR4.png",
+                    "description": "DDR4 DIMM slot"
+                }
+            ]
+        },
+        "usb_headers": {
+            "label": "USB Internal Headers",
+            "entries": [
+                {
+                    "id": "usb3_gen1",
+                    "keywords": [
+                        "usb 3.0 header",
+                        "usb 3.1 gen1 header",
+                        "usb3 header",
+                        "19-pin usb",
+                        "usb 3.0 internal"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/USB3_Gen1.png",
+                    "description": "USB 3.0/3.1 Gen1 internal header (19-pin)"
+                },
+                {
+                    "id": "usb3_gen2",
+                    "keywords": [
+                        "usb 3.1 gen2 header",
+                        "usb 3.2 header",
+                        "usb-c header",
+                        "type-c header",
+                        "usb 3.1 gen2 internal"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/USB3_Gen2.png",
+                    "description": "USB 3.1 Gen2/3.2 internal header"
+                },
+                {
+                    "id": "usb_header",
+                    "keywords": [
+                        "usb header",
+                        "usb 2.0 header",
+                        "9-pin usb",
+                        "usb internal header",
+                        "usb 2.0 internal"
+                    ],
+                    "url": "https://pcpartpicker.com/static/forever/img/ports/USB_Header.png",
+                    "description": "USB 2.0 internal header (9-pin)"
+                }
+            ]
+        }
+    }
+}
