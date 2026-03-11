@@ -171,14 +171,18 @@ async def websocket_endpoint(
 
     latest_image_blob = None  # Tracks the latest frame instead of ongoing feed
     frame_sent_this_turn = False  # Flag to track if latest frame was sent with VAD
+    is_tool_active = False
 
     # Background task worker for image sending
     async def frame_injection_worker():
-        # already have VAD injection, might not need worker
-        nonlocal latest_image_blob
+        nonlocal latest_image_blob, is_tool_active
         last_sent = None
         while True:
-            await asyncio.sleep(3)
+            await asyncio.sleep(1)
+
+            if is_tool_active:
+                continue
+
             if latest_image_blob and latest_image_blob is not last_sent:
                 live_request_queue.send_realtime(latest_image_blob)
                 last_sent = latest_image_blob
@@ -187,19 +191,52 @@ async def websocket_endpoint(
     async def upstream_task() -> None:
         """Receives messages from WebSocket and sends to LiveRequestQueue."""
         logger.debug("upstream_task started")
-        nonlocal latest_image_blob, frame_sent_this_turn
+        nonlocal latest_image_blob, frame_sent_this_turn, is_tool_active
         while True:
             # Receive message from WebSocket (text or binary)
             message = await websocket.receive()
 
+            # Handle text frames first — always buffer images, even during tool calls
+            if "text" in message:
+                text_data = message["text"]
+                logger.debug(f"Received text message: {text_data[:100]}...")
+
+                json_message = json.loads(text_data)
+
+                if json_message.get("type") == "image":
+                    logger.debug("Received image data")
+                    image_data = base64.b64decode(json_message["data"])
+                    mime_type = json_message.get("mimeType", "image/jpeg")
+                    latest_image_blob = types.Blob(mime_type=mime_type, data=image_data)
+                    logger.debug(
+                        f"Buffered frame, {len(image_data)} bytes, type: {mime_type}"
+                    )
+                    continue
+
+                if is_tool_active:
+                    continue
+
+                if json_message.get("type") == "text":
+                    logger.debug(f"Sending text content: {json_message['text']}")
+                    content = types.Content(
+                        parts=[types.Part(text=json_message["text"])]
+                    )
+                    live_request_queue.send_content(content)
+                continue
+
+            # Gate audio behind is_tool_active
+            if is_tool_active:
+                continue
+
             # Handle binary frames (audio data)
             if "bytes" in message:
                 # VAD to also include the current frame when user speaks
-                if not frame_sent_this_turn and latest_image_blob is not None:
-                    live_request_queue.send_realtime(latest_image_blob)
-                    frame_sent_this_turn = True
-                    logger.debug("Attached frame to voice turn")
-
+                # BUG: causing 1008? fighting the tool calls
+                # if not frame_sent_this_turn and latest_image_blob is not None:
+                #     live_request_queue.send_realtime(latest_image_blob)
+                #     frame_sent_this_turn = True
+                #     logger.debug("Attached frame to voice turn")
+                #
                 audio_data = message["bytes"]
                 logger.debug(f"Received binary audio chunk: {len(audio_data)} bytes")
 
@@ -208,44 +245,45 @@ async def websocket_endpoint(
                 )
                 live_request_queue.send_realtime(audio_blob)
 
-            # Handle text frames (JSON messages)
-            elif "text" in message:
-                text_data = message["text"]
-                logger.debug(f"Received text message: {text_data[:100]}...")
-
-                json_message = json.loads(text_data)
-
-                # Extract text from JSON and send to LiveRequestQueue
-                if json_message.get("type") == "text":
-                    logger.debug(f"Sending text content: {json_message['text']}")
-                    content = types.Content(
-                        parts=[types.Part(text=json_message["text"])]
-                    )
-                    # --- IMPORTANT -- pure teext uses `send_content` which is why it wasn't seeing the images
-                    # Acceptable since the goal is hands free usage
-                    live_request_queue.send_content(content)
-
-                # Handle image data
-                elif json_message.get("type") == "image":
-                    logger.debug("Received image data")
-
-                    # Decode base64 image data
-                    image_data = base64.b64decode(json_message["data"])
-                    mime_type = json_message.get("mimeType", "image/jpeg")
-                    # with open("/tmp/last_frame.jpg", "wb") as f:
-                    #     f.write(image_data)
-                    # mime_type = json_message.get("mimeType", "image/jpeg")
-                    #
-
-                    # latest_image_blob is scoped to a background worker
-                    latest_image_blob = types.Blob(mime_type=mime_type, data=image_data)
-                    logger.debug(
-                        f"Buffered frame, {len(image_data)} bytes, type: {mime_type}"
-                    )
+            # # Handle text frames (JSON messages)
+            # elif "text" in message:
+            #     text_data = message["text"]
+            #     logger.debug(f"Received text message: {text_data[:100]}...")
+            #
+            #     json_message = json.loads(text_data)
+            #
+            #     # Extract text from JSON and send to LiveRequestQueue
+            #     if json_message.get("type") == "text":
+            #         logger.debug(f"Sending text content: {json_message['text']}")
+            #         content = types.Content(
+            #             parts=[types.Part(text=json_message["text"])]
+            #         )
+            #         # --- IMPORTANT -- pure teext uses `send_content` which is why it wasn't seeing the images
+            #         # Acceptable since the goal is hands free usage
+            #         live_request_queue.send_content(content)
+            #
+            #     # Handle image data
+            #     elif json_message.get("type") == "image":
+            #         logger.debug("Received image data")
+            #
+            #         # Decode base64 image data
+            #         image_data = base64.b64decode(json_message["data"])
+            #         mime_type = json_message.get("mimeType", "image/jpeg")
+            #         # with open("/tmp/last_frame.jpg", "wb") as f:
+            #         #     f.write(image_data)
+            #         # mime_type = json_message.get("mimeType", "image/jpeg")
+            #         #
+            #
+            #         # latest_image_blob is scoped to a background worker
+            #         latest_image_blob = types.Blob(mime_type=mime_type, data=image_data)
+            #         logger.debug(
+            #             f"Buffered frame, {len(image_data)} bytes, type: {mime_type}"
+            #         )
+            #
 
     async def downstream_task() -> None:
         """Receives Events from run_live() and sends to WebSocket."""
-        nonlocal frame_sent_this_turn
+        nonlocal frame_sent_this_turn, is_tool_active
         logger.debug("downstream_task started, calling runner.run_live()")
         logger.debug(
             f"Starting run_live with user_id={user_id}, session_id={session_id}"
@@ -260,7 +298,15 @@ async def websocket_endpoint(
             logger.debug(f"[SERVER] Event: {event_json}")
             await websocket.send_text(event_json)
 
-            if getattr(event, "turn_complete", False):
+            if event.get_function_calls():
+                is_tool_active = True
+                logger.debug("Tool call detected, pausing realtime input")
+
+            # Blocking on image to prevent spamming the downstream server
+            if getattr(event, "turn_complete", False) or getattr(
+                event, "interrupted", False
+            ):
+                is_tool_active = False
                 frame_sent_this_turn = False
                 logger.debug("Turn complete, reset frame flag")
 

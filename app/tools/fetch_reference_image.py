@@ -16,7 +16,7 @@ with open(_DIR / "connectors.json") as f:
             }
 
 
-def get_connector_image(part_name: str) -> dict:
+def get_connector_image(connector_id: str) -> dict:
     """Get the reference image URL for a PC connector/port.
 
     Args:
@@ -38,11 +38,13 @@ def get_connector_image(part_name: str) -> dict:
     Returns:
         Dict with 'url' and 'description', or error with valid_ids list.
     """
-    result = CONNECTORS.get(part_name)
+    result = CONNECTORS.get(connector_id)
     if result:
         return {
             "status": "success",
             "connector_url": result["url"],
             "description": result["description"],
         }
-    return {"error_message": f"no reference image available for connector {part_name}"}
+    return {
+        "error_message": f"no reference image available for connector {connector_id}"
+    }

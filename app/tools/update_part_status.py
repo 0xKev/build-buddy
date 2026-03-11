@@ -1,0 +1,53 @@
+from typing import Literal, Optional
+from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.tool_context import ToolContext
+
+
+# TODO: hook to context with pre and post hooks
+# also create another tool for "get_build_progress"
+def update_part_status(
+    tool_context: ToolContext,
+    part_id: str,
+    status: Literal["NOT_STARTED", "IN_PROGRESS", "DONE", "BLOCKED"],
+    notes: str = "",
+) -> dict:
+    """
+    Update the installation status of a specific part in the current build.
+
+    Use this when the user reports progress on a part, e.g. they've started
+    installing it, finished it, or hit a problem. Do NOT use this to look up
+    current progress. Use get_build_progress for that.
+
+    Args:
+        part_id: Identifier for the part (e.g. "cpu", "gpu", "psu", "ram").
+        status: Current installation state of the part.
+        notes: Optional context like issues encountered or tools needed.
+    """
+    build = tool_context.state.get("build_progress", {})
+    # TODO: later i want to make it so we take a snapshot of history so we can generate a report
+    # currently, this overwrites status history
+    build[part_id]["status"] = status
+    build[part_id]["notes"] = notes
+    tool_context.state["build_progress"] = build
+
+    # return summary
+    done = [k for k, v in build.items() if v["status"] == "DONE"]
+    remaining = [k for k, v in build.items() if v["status"] != "DONE"]
+
+    return {
+        "updated_part": part_id,
+        "new_status": status,
+        "part_notes": notes,
+        "completed_tasks": done,
+        "remaining_tasks": remaining,
+    }
+
+
+# https://google.github.io/adk-docs/callbacks/types-of-callbacks/#after-tool-callback
+# TODO: send reports to firebase/cloud
+# need to add the blob to toolcontext
+def after_tool_report_log(
+    tool: BaseTool, args: dict[str, any], tool_context: ToolContext, tool_response: dict
+) -> Optional[dict]:
+    # Add a hook to take a snapshot and log time, and status
+    ...

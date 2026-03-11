@@ -11,6 +11,7 @@ const userId = "demo-user";
 const sessionId = "demo-session-" + Math.random().toString(36).substring(7);
 let websocket = null;
 let is_audio = false;
+let isToolRunning = false; // Prevent camera snapshot sent to ws when tool is running
 
 // Get checkbox elements for RunConfig options
 const enableProactivityCheckbox = document.getElementById("enableProactivity");
@@ -355,12 +356,14 @@ function connectWebsocket() {
 
         if (adkEvent.turnComplete) {
             console.log(">>> TURN COMPLETE - resetting audioInterrupted");
-            pendingImageRequest = false;
+            // pendingImageRequest = false;
+            isToolRunning = false;
             eventSummary = 'Turn Complete';
             eventEmoji = '✅';
 
         } else if (adkEvent.interrupted) {
             eventSummary = 'Interrupted';
+            isToolRunning = false;
             eventEmoji = '⏸️';
         } else if (adkEvent.inputTranscription) {
             // Show transcription text in summary
@@ -497,6 +500,7 @@ function connectWebsocket() {
 
         // Handle interrupted event
         if (adkEvent.interrupted === true) {
+            isToolRunning = false;
             if (audioPlayerNode) {
                 audioPlayerNode.port.postMessage({ command: "endOfAudio" });
             }
@@ -650,6 +654,11 @@ function connectWebsocket() {
 
         // Handle content events (text or audio)
         if (adkEvent.content && adkEvent.content.parts) {
+            const hasToolCall = adkEvent.content.parts.some(p => p.functionCall);
+            if (hasToolCall) {
+                console.warn(">>> TOOL START: Muting microphone.");
+                isToolRunning = true;
+            }
             const parts = adkEvent.content.parts;
 
             // Finalize any active input transcription when server starts responding with content
@@ -667,7 +676,7 @@ function connectWebsocket() {
             }
 
             for (const part of parts) {
-                // TODO: show img bubble
+                // Display connector parts
                 if (part.functionResponse && part.functionResponse.name == "get_connector_image") {
                     const response = part.functionResponse.response;
                     if (response && response.connector_url) {
@@ -678,18 +687,30 @@ function connectWebsocket() {
                     // continue; // Can skip if it's a tool call, since I'm using just my custom ref img tool
                 }
 
+                // Display user build parts
+                if (part.functionResponse && part.functionResponse.name == "show_user_part") {
+                    const response = part.functionResponse.response;
+                    if (response && response.image_url) {
+                        const imageBubble = createImageBubble(response.image_url, false);
+                        messagesDiv.appendChild(imageBubble);
+                        scrollToBottom();
+                    }
+                    // continue; // Can skip if it's a tool call, since I'm using just my custom ref img tool
+                }
+
+
                 // Handle inline data (audio)
                 if (part.inlineData) {
                     const mimeType = part.inlineData.mimeType;
                     const data = part.inlineData.data;
 
                     // Add guard for audio player if interrupted
-                    if (mimeType && mimeType.startsWith("audio/pcm") && audioPlayerNode);
-                    console.log(">>> PLAYING AUDIO CHUNK");
-                    audioPlayerNode.port.postMessage(base64ToArray(data));
-                } else {
-
-                    console.log(">>> DROPPING AUDIO CHUNK (interrupted)");
+                    if (mimeType && mimeType.startsWith("audio/pcm") && audioPlayerNode) {
+                        console.log(">>> PLAYING AUDIO CHUNK");
+                        audioPlayerNode.port.postMessage(base64ToArray(data));
+                    } else if (!audioPlayerNode) {
+                        console.log(">>> DROPPING AUDIO CHUNK (interrupted)");
+                    }
                 }
 
 
@@ -895,7 +916,7 @@ function hideCameraPreview() {
     cameraPreview.play(); // Force cameraPreview to continue
 }
 
-let pendingImageRequest = false; // State to determine if we should send the current image
+// let pendingImageRequest = false; // State to determine if we should send the current image
 
 // Capture image from the live preview
 function captureImageFromPreview() {
@@ -903,6 +924,12 @@ function captureImageFromPreview() {
         addSystemMessage('No camera stream available');
         return;
     }
+
+    // Prevent 1008 due to tool while camera feed
+    // if (isToolRunning) {
+    //     console.warn("Tool is executed on the backend. Image capture pasued to prevent err 1008")
+    //     return;
+    // }
 
     try {
         // Create canvas to capture the frame
@@ -915,24 +942,26 @@ function captureImageFromPreview() {
         context.drawImage(cameraPreview, 0, 0, canvas.width, canvas.height);
 
         // Convert canvas to data URL for display
-        const imageDataUrl = canvas.toDataURL('image/jpeg', 1.00); // Bump to 1.0, costly but best quality
+        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.85) // Bump to 1.0, costly but best quality
 
         // Display the captured image in the chat
         // FIXME: update chat only when new frame is processed by ai, else don't display
-        const imageBubble = createImageBubble(imageDataUrl, true);
-        messagesDiv.appendChild(imageBubble);
-        scrollToBottom();
+        // const imageBubble = createImageBubble(imageDataUrl, true);
+        // messagesDiv.appendChild(imageBubble);
+        // scrollToBottom();
 
         // Convert canvas to blob for sending to server
         canvas.toBlob((blob) => {
+            //TODO: might not need toBlob, if we're just sending the base64 data, can use the imageDataUrl above
             // Convert blob to base64 for sending to server
             const reader = new FileReader();
             reader.onloadend = () => {
                 const base64data = reader.result.split(',')[1]; // Remove data:image/jpeg;base64, prefix
-                if (!pendingImageRequest) {
-                    pendingImageRequest = true;
-                    sendImage(base64data); // Updating in webstock.onmessage callback
-                }
+                // if (!pendingImageRequest) {
+                //     pendingImageRequest = true;
+                //     sendImage(base64data); // Updating in webstock.onmessage callback
+                // }
+                sendImage(base64data); // have the backend handle the turn blocking instead of frontend js
             };
             reader.readAsDataURL(blob);
 
@@ -1044,6 +1073,11 @@ startAudioButton.addEventListener("click", () => {
 
 // Audio recorder handler
 function audioRecorderHandler(pcmData) {
+    // Block if tool is running
+    // if (isToolRunning) {
+    //     return;
+    // }
+
     if (websocket && websocket.readyState === WebSocket.OPEN && is_audio) {
         // Send audio as binary WebSocket frame (more efficient than base64 JSON)
         websocket.send(pcmData);
