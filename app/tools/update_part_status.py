@@ -1,6 +1,8 @@
 from typing import Literal, Optional
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
+from mcp import Tool
+from typing import Any
 
 
 # TODO: hook to context with pre and post hooks
@@ -47,7 +49,61 @@ def update_part_status(
 # TODO: send reports to firebase/cloud
 # need to add the blob to toolcontext
 def after_tool_report_log(
-    tool: BaseTool, args: dict[str, any], tool_context: ToolContext, tool_response: dict
+    tool: BaseTool, args: dict[str, Any], tool_context: ToolContext, tool_response: dict
 ) -> Optional[dict]:
     # Add a hook to take a snapshot and log time, and status
+    snapshot = _build_snapshot(tool, args, tool_context, tool_response)
+    doc_id = _log_to_firestore(snapshot)
+
+    blob_url = _upload_blob_to_gcs(tool_context)
+    if blob_url:
+        # update firestore with blob_url
+        _update_firestore_record(doc_id, {"gcs_url": blob_url})
+
+
+# Snapshot for firestore
+def _build_snapshot(
+    tool: BaseTool,
+    args: dict[str, Any],
+    tool_context: ToolContext,
+    tool_response: dict,
+):
+    return {
+        "tool_name": tool.name,
+        "timestamp": ...,  #
+        "args": args,
+        "response": tool_response,
+        "build_progress": tool_context.get("build_progress", {}),
+        "gcs_url": "PENDING",
+    }
+
+
+def _update_firestore_record(doc_id: str, fields: dict):
+    # the main thing we'll only be updating is just "gcs_url"
+    upload_url = fields.get("gcs_url")
+    if upload_url:
+        # update the firestore record
+        ...
+
+
+def _log_to_firestore(snapshot: dict[str, str]) -> str:
     ...
+    # store to firestore
+    # return firestore id for this record
+
+
+def _upload_blob_to_gcs(tool_context: ToolContext) -> str:
+    pending_blob: dict = tool_context.state.pop("pending_blob", None)
+    # if exists, it'll be a dictionary
+    # {
+    #     "data": blob, # bytes
+    #     "part_id": "cpu", # str
+    #     "filename": "cpu_verification.jpg", # str
+    # }
+    if pending_blob is None:
+        return ""
+
+    # otherwise upload the actual iamge blob to GCS
+    # the part_id field is what ties the uploaded blob to the firestore record
+
+    # return url of uploaded blob
