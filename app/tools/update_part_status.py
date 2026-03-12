@@ -55,6 +55,7 @@ def after_tool_report_log(
     snapshot = _build_snapshot(tool, args, tool_context, tool_response)
     doc_id = _log_to_firestore(snapshot)
 
+    # image data blob
     blob_url = _upload_blob_to_gcs(tool_context)
     if blob_url:
         # update firestore with blob_url
@@ -62,6 +63,7 @@ def after_tool_report_log(
 
 
 # Snapshot for firestore
+# formatting
 def _build_snapshot(
     tool: BaseTool,
     args: dict[str, Any],
@@ -73,7 +75,7 @@ def _build_snapshot(
         "timestamp": ...,  #
         "args": args,
         "response": tool_response,
-        "build_progress": tool_context.get("build_progress", {}),
+        "build_progress": tool_context.state.get("build_progress", {}),
         "gcs_url": "PENDING",
     }
 
@@ -93,7 +95,7 @@ def _log_to_firestore(snapshot: dict[str, str]) -> str:
 
 
 def _upload_blob_to_gcs(tool_context: ToolContext) -> str:
-    pending_blob: dict = tool_context.state.pop("pending_blob", None)
+    pending_blob: dict = tool_context.state.get("pending_blob", None) # empty chat history log
     # if exists, it'll be a dictionary
     # {
     #     "data": blob, # bytes
@@ -107,3 +109,5 @@ def _upload_blob_to_gcs(tool_context: ToolContext) -> str:
     # the part_id field is what ties the uploaded blob to the firestore record
 
     # return url of uploaded blob
+    tool_context.state["pending_blob"] = {}
+    return ""
