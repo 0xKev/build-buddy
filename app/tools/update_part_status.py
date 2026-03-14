@@ -1,8 +1,15 @@
+from mimetypes import guess_type
+import os
 from typing import Literal, Optional
+from google.cloud import storage
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
-from mcp import Tool
 from typing import Any
+
+# Create the client and bucket once and reuse
+_storage_client = storage.Client(os.getenv("GS_PROJECT_ID", "build-buddy"))
+_bucket_name = os.getenv("GS_BUCKET_ID", "gemini_hackathon_build_buddy_001")
+_bucket = _storage_client.bucket(_bucket_name)
 
 
 # TODO: hook to context with pre and post hooks
@@ -48,17 +55,20 @@ def update_part_status(
 # https://google.github.io/adk-docs/callbacks/types-of-callbacks/#after-tool-callback
 # TODO: send reports to firebase/cloud
 # need to add the blob to toolcontext
+# potential issue with huge delays in convo due to synchronous operations but it's prob fine, just async it later if needed
 def after_tool_report_log(
     tool: BaseTool, args: dict[str, Any], tool_context: ToolContext, tool_response: dict
 ) -> Optional[dict]:
-    # Add a hook to take a snapshot and log time, and status
-    snapshot = _build_snapshot(tool, args, tool_context, tool_response)
-    doc_id = _log_to_firestore(snapshot)
 
-    blob_url = _upload_blob_to_gcs(tool_context)
-    if blob_url:
-        # update firestore with blob_url
-        _update_firestore_record(doc_id, {"gcs_url": blob_url})
+    if tool.name == "update_part_status":
+        # no need to check for responses here from the tool call
+        snapshot = _build_snapshot(tool, args, tool_context, tool_response)
+        doc_id = _log_to_firestore(snapshot)
+
+        blob_url = _upload_blob_to_gcs(tool_context)
+        if blob_url:
+            # update firestore with blob_url
+            _update_firestore_record(doc_id, {"gcs_url": blob_url})
 
 
 # Snapshot for firestore
@@ -93,7 +103,7 @@ def _log_to_firestore(snapshot: dict[str, str]) -> str:
 
 
 def _upload_blob_to_gcs(tool_context: ToolContext) -> str:
-    pending_blob: dict = tool_context.state.pop("pending_blob", None)
+    pending_blob: dict | None = tool_context.state.get("pending_blob", None)
     # if exists, it'll be a dictionary
     # {
     #     "data": blob, # bytes
@@ -103,7 +113,42 @@ def _upload_blob_to_gcs(tool_context: ToolContext) -> str:
     if pending_blob is None:
         return ""
 
+    tool_context.state["pending_blob"] = (
+        None  # clear out pending blob after uploading, no need to maintain
+    )
     # otherwise upload the actual iamge blob to GCS
     # the part_id field is what ties the uploaded blob to the firestore record
+    blob = _bucket.blob(pending_blob["filename"])
+
+    # mime.guess_file_type is only py3.13
+    # mime.guess_type() to support either images or text for testing
+    content_type, _ = guess_type(pending_blob["filename"])
+    blob.upload_from_string(
+        pending_blob["data"], content_type=content_type or "application/octet-stream"
+    )  # in case guess_file_type fails
 
     # return url of uploaded blob
+    gs_url = f"gs://{_bucket_name}/{pending_blob['filename']}"
+
+    # gs url can always be used to generate the actual direct download link as needed
+    return gs_url
+
+
+if __name__ == "__main__":
+    print("RUNNING...")
+
+    class FakeToolContext:
+        def __init__(self):
+            self.state = {
+                "pending_blob": {
+                    "data": "this is a test",
+                    "part_id": "cpu",
+                    "filename": "test.txt",
+                }
+            }
+
+    # Test blob upload works
+    mock_tool_context = FakeToolContext()
+    print("INIT FakeToolContext")
+    gcs_url = _upload_blob_to_gcs(mock_tool_context)
+    print(f"{gcs_url=}")
