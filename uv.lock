@@ -88,12 +88,14 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "google-adk" },
+    { name = "google-cloud-storage" },
     { name = "google-genai" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "google-adk", specifier = ">=1.26.0" },
+    { name = "google-cloud-storage", specifier = ">=3.9.0" },
     { name = "google-genai", specifier = ">=1.65.0" },
 ]
 
