@@ -4,14 +4,14 @@ from google.adk.tools.tool_context import ToolContext
 from mcp import Tool
 from typing import Any
 from datetime import datetime, timezone
-"""
-# need virtual python environment?
+from google.cloud import firestore      # might have to move this down?
 import firebase_admin
 from firebase_admin import credentials
-from firebase_admin import firestore
-"""
 
+cred = credentials.Certificate("path/to/service_account_key.json")
+firebase_admin.initialize_app(cred)
 
+db = firestore.Client()
 
 def _build_snapshot(
     tool: BaseTool,
