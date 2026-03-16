@@ -14,7 +14,7 @@ from app.tools.firestore_utils import (
 import base64
 
 # Create the client and bucket once and reuse
-_storage_client = storage.Client(os.getenv("GS_PROJECT_ID", "build-buddy"))
+_storage_client = storage.Client(os.getenv("PROJECT_ID", "build-buddy-488918"))
 _bucket_name = os.getenv("GS_BUCKET_ID", "gemini_hackathon_build_buddy_001")
 _bucket = _storage_client.bucket(_bucket_name)
 

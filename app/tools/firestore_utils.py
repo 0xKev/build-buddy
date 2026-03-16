@@ -5,9 +5,10 @@ from google.adk.tools.tool_context import ToolContext
 from typing import Any
 from datetime import datetime, timezone
 from google.cloud import firestore
+import os
 
-FIRESTORE_COLLECTION_ID = "bb-report-data"
-PROJECT_ID = "build-buddy-488918"
+FIRESTORE_COLLECTION_ID = os.getenv("FIRESTORE_COLLECTION_ID", "bb-report-data")
+PROJECT_ID = os.getenv("PROJECT_ID", "build-buddy-488918")
 
 _db = firestore.Client(PROJECT_ID)
 
