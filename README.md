@@ -2,6 +2,13 @@
 
 ![Architecture Diagram](./gemini3_live_agent_hackathon_architectural_diagram.svg)
 
+## Tech Stack
+- **AI:** Gemini 2.5 Flash (Live API) + Google ADK
+- **Backend:** FastAPI, Python 3.12
+- **Frontend:** Vanilla HTML/CSS/JS (mobile-first)
+- **Deployment:** Cloud Run, Cloud Build
+- **Storage:** Firestore, Google Cloud Storage
+
 ### Prerequisites
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) package manager
