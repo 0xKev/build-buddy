@@ -73,6 +73,7 @@ def after_tool_report_log(
 
 
 # Snapshot for firestore
+# formatting
 def _build_snapshot(
     tool: BaseTool,
     args: dict[str, Any],
@@ -84,7 +85,7 @@ def _build_snapshot(
         "timestamp": ...,  #
         "args": args,
         "response": tool_response,
-        "build_progress": tool_context.get("build_progress", {}),
+        "build_progress": tool_context.state.get("build_progress", {}),
         "gcs_url": "PENDING",
     }
 
