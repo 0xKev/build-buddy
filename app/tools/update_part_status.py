@@ -129,11 +129,18 @@ def _upload_blob_to_gcs(tool_context: ToolContext) -> str:
         image_bytes, content_type=content_type or "application/octet-stream"
     )  # in case guess_file_type fails
 
+    # note that can only make public if bucket rules aren't set to uniform or else can't modify individual blob settings
+    # instead, i set entire bucket to public for hackathon, otherwise presigned urls with expirations
+    # blob.make_public()
+
     # return url of uploaded blob
-    gs_url = f"gs://{_bucket_name}/{pending_blob['filename']}"
+    # gs_url = f"gs://{_bucket_name}/{pending_blob['filename']}"
 
     # gs url can always be used to generate the actual direct download link as needed
-    return gs_url
+    # return gs_url
+
+    # for hackathon, just do public url instead with read access, making it easier for report generation later
+    return blob.public_url
 
 
 def before_tool_modifier(
