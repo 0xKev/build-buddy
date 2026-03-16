@@ -16,6 +16,7 @@ from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
+from app.image_state import image_holder
 
 # Load environment variables from .env file BEFORE importing agent
 # load_dotenv(Path(__file__).parent / ".env")
@@ -215,6 +216,13 @@ async def websocket_endpoint(
                     logger.debug("Received image data")
                     image_data = base64.b64decode(json_message["data"])
                     mime_type = json_message.get("mimeType", "image/jpeg")
+
+                    # Track state in image holder to transport to the tool context layer
+                    image_holder["b64"] = json_message[
+                        "data"
+                    ]  # Directly just pass the b64 rather than converting back and forth
+                    image_holder["mime"] = mime_type
+
                     latest_image_blob = types.Blob(mime_type=mime_type, data=image_data)
                     logger.debug(
                         f"Buffered frame, {len(image_data)} bytes, type: {mime_type}"
