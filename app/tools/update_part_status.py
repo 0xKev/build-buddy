@@ -6,6 +6,11 @@ from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 from typing import Any
 from app.image_state import get_latest_image
+from app.tools.firestore_utils import (
+    _build_snapshot,
+    _update_firestore_record,
+    _log_to_firestore,
+)
 import base64
 
 # Create the client and bucket once and reuse
@@ -34,10 +39,12 @@ def update_part_status(
         notes: Optional context like issues encountered or tools needed.
     """
     build = tool_context.state.get("build_progress", {})
-    # TODO: later i want to make it so we take a snapshot of history so we can generate a report
-    # currently, this overwrites status history
+
     build[part_id]["status"] = status
     build[part_id]["notes"] = notes
+
+    # last_updated_part to track delta instead of full history
+    tool_context.state["last_updated_part"] = part_id
     tool_context.state["build_progress"] = build
 
     # return summary
@@ -54,16 +61,13 @@ def update_part_status(
 
 
 # https://google.github.io/adk-docs/callbacks/types-of-callbacks/#after-tool-callback
-# TODO: send reports to firebase/cloud
-# need to add the blob to toolcontext
-# potential issue with huge delays in convo due to synchronous operations but it's prob fine, just async it later if needed
 def after_tool_report_log(
     tool: BaseTool, args: dict[str, Any], tool_context: ToolContext, tool_response: dict
 ) -> Optional[dict]:
 
     if tool.name == "update_part_status":
         # no need to check for responses here from the tool call
-        snapshot = _build_snapshot(tool, args, tool_context, tool_response)
+        snapshot = _build_snapshot(tool, tool_context)
         doc_id = _log_to_firestore(snapshot)
 
         blob_url = _upload_blob_to_gcs(tool_context)
@@ -72,46 +76,8 @@ def after_tool_report_log(
             _update_firestore_record(doc_id, {"gcs_url": blob_url})
 
 
-# Snapshot for firestore
-# formatting
-def _build_snapshot(
-    tool: BaseTool,
-    args: dict[str, Any],
-    tool_context: ToolContext,
-    tool_response: dict,
-):
-    return {
-        "tool_name": tool.name,
-        "timestamp": ...,  #
-        "args": args,
-        "response": tool_response,
-        "build_progress": tool_context.state.get("build_progress", {}),
-        "gcs_url": "PENDING",
-    }
-
-
-def _update_firestore_record(doc_id: str, fields: dict):
-    # the main thing we'll only be updating is just "gcs_url"
-    upload_url = fields.get("gcs_url")
-    if upload_url:
-        # update the firestore record
-        ...
-
-
-def _log_to_firestore(snapshot: dict[str, str]) -> str:
-    ...
-    # store to firestore
-    # return firestore id for this record
-
-
 def _upload_blob_to_gcs(tool_context: ToolContext) -> str:
     pending_blob: dict | None = tool_context.state.get("pending_blob", None)
-    # if exists, it'll be a dictionary
-    # {
-    #     "data": blob, # bytes
-    #     "part_id": "cpu", # str
-    #     "filename": "cpu_verification.jpg", # str
-    # }
     if pending_blob is None:
         return ""
 
@@ -148,9 +114,6 @@ def before_tool_modifier(
     tool: BaseTool, args: dict[str, Any], tool_context: ToolContext
 ):
     if tool.name == "update_part_status":
-        # TODO: create the pending blob
-        # use a helper to async fetch the latest image
-        # note that when i do git commit, need to do my chunk ONLY , or else merge conflict amiya
         b64, mime_type = get_latest_image()
         # Using b64 since to prevent encoding/decoding back and forth, and only decode when need to show
         if b64:
