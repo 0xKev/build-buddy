@@ -53,4 +53,5 @@ make docker-run
 7. **View the build report** - tap the link icon (top right) to open the shareable build timeline at `/report/page`
 
 **Note:** A microphone and camera are required for the full experience. Use Chrome or Edge for best Web Audio API support.
+
 **Important:** This hackathon demo does not use session isolation. All build data is stored in a single Firestore collection and GCS bucket. For a clean experience, clear your Firestore collection and GCS bucket before each new build session.
