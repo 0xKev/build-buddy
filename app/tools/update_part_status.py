@@ -5,6 +5,8 @@ from google.cloud import storage
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 from typing import Any
+from app.image_state import get_latest_image
+import base64
 
 # Create the client and bucket once and reuse
 _storage_client = storage.Client(os.getenv("GS_PROJECT_ID", "build-buddy"))
@@ -12,8 +14,7 @@ _bucket_name = os.getenv("GS_BUCKET_ID", "gemini_hackathon_build_buddy_001")
 _bucket = _storage_client.bucket(_bucket_name)
 
 
-# TODO: hook to context with pre and post hooks
-# also create another tool for "get_build_progress"
+# Function Tool to update part status
 def update_part_status(
     tool_context: ToolContext,
     part_id: str,
@@ -122,9 +123,10 @@ def _upload_blob_to_gcs(tool_context: ToolContext) -> str:
 
     # mime.guess_file_type is only py3.13
     # mime.guess_type() to support either images or text for testing
+    image_bytes = base64.b64decode(pending_blob["data"])
     content_type, _ = guess_type(pending_blob["filename"])
     blob.upload_from_string(
-        pending_blob["data"], content_type=content_type or "application/octet-stream"
+        image_bytes, content_type=content_type or "application/octet-stream"
     )  # in case guess_file_type fails
 
     # return url of uploaded blob
@@ -132,6 +134,28 @@ def _upload_blob_to_gcs(tool_context: ToolContext) -> str:
 
     # gs url can always be used to generate the actual direct download link as needed
     return gs_url
+
+
+def before_tool_modifier(
+    tool: BaseTool, args: dict[str, Any], tool_context: ToolContext
+):
+    if tool.name == "update_part_status":
+        # TODO: create the pending blob
+        # use a helper to async fetch the latest image
+        # note that when i do git commit, need to do my chunk ONLY , or else merge conflict amiya
+        b64, mime_type = get_latest_image()
+        # Using b64 since to prevent encoding/decoding back and forth, and only decode when need to show
+        if b64:
+            # Only attaching the latest to the tool context
+            ext = mime_type.split("/")[-1].replace("jpeg", "jpg")
+            part_id = args.get("part_id", "N/A")
+            filename = f"{part_id}.{ext}" if part_id != "N/A" else "missing_part_id.jpg"
+
+            tool_context.state["pending_blob"] = {
+                "data": b64,
+                "part_id": part_id,
+                "filename": filename,
+            }
 
 
 if __name__ == "__main__":
