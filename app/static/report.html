@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BuildBuddy — Build Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #08080d;
+  --surface: #101018;
+  --surface2: #181822;
+  --surface3: #22222e;
+  --border: #252535;
+  --border-hi: #3a3a50;
+  --text: #e8e8f0;
+  --text2: #9090a8;
+  --text3: #60607a;
+  --accent: #00d4aa;
+  --accent-dim: rgba(0,212,170,0.10);
+  --accent-glow: rgba(0,212,170,0.06);
+  --warn: #ffaa33;
+  --done: #00d4aa;
+  --progress: #ffaa33;
+  --blocked: #ff4466;
+  --not-started: #60607a;
+  --r: 12px;
+  --rs: 8px;
+  --font: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+html {
+  background: var(--bg); color: var(--text);
+  font-family: var(--font);
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(0,212,170,0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(0,212,170,0.03) 0%, transparent 50%),
+    var(--bg);
+}
+
+/* ── Header ── */
+.report-header {
+  padding: 40px 24px 32px;
+  max-width: 640px;
+  margin: 0 auto;
+  animation: fadeUp 0.6s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.report-brand {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 24px;
+}
+.report-logo {
+  width: 32px; height: 32px; background: var(--accent);
+  border-radius: 8px; display: grid; place-items: center;
+  font-weight: 800; font-size: 14px; color: var(--bg);
+}
+.report-brand-text { font-weight: 700; font-size: 16px; }
+.report-brand-text em { color: var(--accent); font-style: normal; }
+
+.report-title {
+  font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
+  line-height: 1.2; margin-bottom: 8px;
+}
+
+.report-meta {
+  font-size: 13px; color: var(--text3); font-family: var(--mono);
+  display: flex; flex-wrap: wrap; gap: 16px;
+}
+
+.report-stat {
+  display: flex; align-items: center; gap: 6px;
+}
+.report-stat-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+
+/* ── Summary Bar ── */
+.summary-bar {
+  max-width: 640px; margin: 0 auto 32px;
+  padding: 0 24px;
+  animation: fadeUp 0.6s ease 0.1s both;
+}
+.summary-inner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px 20px;
+  display: flex; flex-wrap: wrap; gap: 20px;
+}
+.summary-item {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.summary-label {
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--text3);
+}
+.summary-value {
+  font-size: 20px; font-weight: 700;
+  font-family: var(--mono);
+}
+.summary-value.done { color: var(--done); }
+.summary-value.remaining { color: var(--warn); }
+.summary-value.blocked { color: var(--blocked); }
+
+/* ── Progress Track ── */
+.progress-track {
+  max-width: 640px; margin: 0 auto 40px;
+  padding: 0 24px;
+  animation: fadeUp 0.6s ease 0.15s both;
+}
+.track-bar {
+  height: 6px; background: var(--surface3);
+  border-radius: 3px; overflow: hidden;
+}
+.track-fill {
+  height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), #00eabb);
+  transition: width 0.8s ease;
+}
+
+/* ── Timeline ── */
+.timeline {
+  max-width: 640px; margin: 0 auto;
+  padding: 0 24px 60px;
+  position: relative;
+}
+
+/* Vertical line */
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 47px;
+  top: 0;
+  bottom: 40px;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--border), transparent);
+}
+
+.tl-entry {
+  position: relative;
+  padding-left: 56px;
+  padding-bottom: 32px;
+  animation: fadeUp 0.5s ease both;
+}
+
+/* Stagger animations */
+.tl-entry:nth-child(1) { animation-delay: 0.2s; }
+.tl-entry:nth-child(2) { animation-delay: 0.28s; }
+.tl-entry:nth-child(3) { animation-delay: 0.36s; }
+.tl-entry:nth-child(4) { animation-delay: 0.44s; }
+.tl-entry:nth-child(5) { animation-delay: 0.52s; }
+.tl-entry:nth-child(6) { animation-delay: 0.6s; }
+.tl-entry:nth-child(7) { animation-delay: 0.68s; }
+.tl-entry:nth-child(8) { animation-delay: 0.76s; }
+.tl-entry:nth-child(9) { animation-delay: 0.84s; }
+.tl-entry:nth-child(10) { animation-delay: 0.92s; }
+.tl-entry:nth-child(n+11) { animation-delay: 1s; }
+
+/* Timeline dot */
+.tl-dot {
+  position: absolute;
+  left: 18px;
+  top: 4px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 2.5px solid var(--border);
+  background: var(--bg);
+  display: grid; place-items: center;
+  font-size: 9px;
+  z-index: 1;
+}
+.tl-dot.done { border-color: var(--done); background: var(--done); color: var(--bg); }
+.tl-dot.in-progress { border-color: var(--progress); box-shadow: 0 0 0 3px rgba(255,170,51,0.15); }
+.tl-dot.blocked { border-color: var(--blocked); box-shadow: 0 0 0 3px rgba(255,68,102,0.15); }
+
+/* Card */
+.tl-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.tl-card:hover { border-color: var(--border-hi); }
+
+.tl-card-head {
+  padding: 14px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
+.tl-card-info { flex: 1; min-width: 0; }
+.tl-part-name {
+  font-size: 14px; font-weight: 700; margin-bottom: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tl-part-category {
+  font-size: 11px; color: var(--text3);
+}
+
+.tl-status-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.tl-status-badge.done { background: rgba(0,212,170,0.12); color: var(--done); }
+.tl-status-badge.in-progress { background: rgba(255,170,51,0.12); color: var(--progress); }
+.tl-status-badge.blocked { background: rgba(255,68,102,0.12); color: var(--blocked); }
+.tl-status-badge.not-started { background: rgba(96,96,122,0.12); color: var(--not-started); }
+
+.tl-timestamp {
+  padding: 0 16px;
+  font-size: 11px; color: var(--text3);
+  font-family: var(--mono);
+  margin-bottom: 10px;
+}
+
+.tl-notes {
+  padding: 0 16px 14px;
+  font-size: 13px; line-height: 1.5;
+  color: var(--text2);
+}
+.tl-notes:empty { display: none; }
+
+.tl-snapshot {
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+.tl-snapshot-toggle {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 12px; font-weight: 600;
+  color: var(--accent);
+  background: var(--surface2);
+  transition: background 0.15s;
+  width: 100%; border: none; text-align: left;
+}
+.tl-snapshot-toggle:hover { background: var(--surface3); }
+.tl-snapshot-toggle:active { background: var(--border); }
+.tl-snapshot-chevron {
+  font-size: 10px; transition: transform 0.25s;
+  color: var(--text3);
+}
+.tl-snapshot.open .tl-snapshot-chevron { transform: rotate(90deg); }
+.tl-snapshot-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease;
+}
+.tl-snapshot.open .tl-snapshot-body {
+  max-height: 400px;
+}
+.tl-snapshot-body img {
+  width: 100%; display: block;
+  object-fit: contain;
+  background: var(--bg);
+}
+.tl-snapshot-error {
+  padding: 12px 16px;
+  font-size: 12px; color: var(--blocked);
+  display: none;
+  line-height: 1.6;
+}
+.tl-snapshot-link {
+  color: var(--text3);
+  font-size: 11px;
+  font-family: var(--mono);
+  word-break: break-all;
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+}
+.tl-snapshot-link:hover { color: var(--accent); }
+
+/* ── Loading / Error / Empty ── */
+.report-status {
+  max-width: 640px; margin: 80px auto;
+  text-align: center; padding: 24px;
+}
+.report-status-icon { font-size: 40px; margin-bottom: 16px; }
+.report-status-text { font-size: 15px; color: var(--text2); }
+
+/* ── Footer ── */
+.report-footer {
+  max-width: 640px; margin: 0 auto;
+  padding: 20px 24px 40px;
+  text-align: center;
+  font-size: 11px; color: var(--text3);
+  animation: fadeUp 0.6s ease 1.2s both;
+}
+.report-footer a { color: var(--accent); text-decoration: none; }
+
+/* ── Responsive ── */
+@media (min-width: 700px) {
+  .report-header { padding: 60px 24px 40px; }
+  .report-title { font-size: 34px; }
+  .timeline::before { left: 47px; }
+}
+</style>
+</head>
+<body>
+
+<div class="report-header">
+  <div class="report-brand">
+    <div class="report-logo">BB</div>
+    <div class="report-brand-text">Build<em>Buddy</em></div>
+  </div>
+  <h1 class="report-title">Build Timeline</h1>
+  <div class="report-meta" id="report-meta">
+    <span class="report-stat">Loading report...</span>
+  </div>
+</div>
+
+<div class="summary-bar" id="summary-bar" style="display:none;">
+  <div class="summary-inner" id="summary-inner"></div>
+</div>
+
+<div class="progress-track" id="progress-track" style="display:none;">
+  <div class="track-bar"><div class="track-fill" id="track-fill" style="width:0%"></div></div>
+</div>
+
+<div class="timeline" id="timeline"></div>
+
+<div class="report-footer" id="report-footer" style="display:none;">
+  Built with <a href="#">BuildBuddy</a> — AI-guided PC assembly with human-reviewable progress
+</div>
+
+<script>
+(async function() {
+  const timeline = document.getElementById('timeline');
+  const meta = document.getElementById('report-meta');
+  const summaryBar = document.getElementById('summary-bar');
+  const summaryInner = document.getElementById('summary-inner');
+  const progressTrack = document.getElementById('progress-track');
+  const trackFill = document.getElementById('track-fill');
+  const footer = document.getElementById('report-footer');
+
+  // Status helpers
+  function statusClass(status) {
+    if (!status) return 'not-started';
+    const s = status.toUpperCase();
+    if (s === 'DONE') return 'done';
+    if (s === 'IN_PROGRESS') return 'in-progress';
+    if (s === 'BLOCKED') return 'blocked';
+    return 'not-started';
+  }
+
+  function statusLabel(status) {
+    if (!status) return 'Not Started';
+    const s = status.toUpperCase();
+    if (s === 'DONE') return 'Done';
+    if (s === 'IN_PROGRESS') return 'In Progress';
+    if (s === 'BLOCKED') return 'Blocked';
+    if (s === 'NOT_STARTED') return 'Not Started';
+    return status;
+  }
+
+  function formatTime(isoString) {
+    if (!isoString) return '';
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleString('en-US', {
+        month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: true
+      });
+    } catch { return isoString; }
+  }
+
+  function showStatus(icon, text) {
+    timeline.innerHTML =
+      '<div class="report-status">' +
+        '<div class="report-status-icon">' + icon + '</div>' +
+        '<div class="report-status-text">' + text + '</div>' +
+      '</div>';
+  }
+
+  // Fetch data
+  let data;
+  try {
+    const res = await fetch('/report');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    data = await res.json();
+  } catch (err) {
+    showStatus('\u26A0\uFE0F', 'Failed to load report. Make sure the server is running.');
+    console.error('Report fetch error:', err);
+    return;
+  }
+
+  const entries = data.timeline || [];
+
+  if (entries.length === 0) {
+    showStatus('\u{1F4ED}', 'No build activity yet. Start building to generate a timeline!');
+    meta.innerHTML = '<span class="report-stat">No data</span>';
+    return;
+  }
+
+  // Compute summary
+  const partMap = {};
+  entries.forEach(function(e) {
+    // Last entry per part wins (latest status)
+    if (e.part_id) {
+      partMap[e.part_id] = e;
+    }
+  });
+
+  const parts = Object.values(partMap);
+  const doneCount = parts.filter(function(p) { return p.part_data && p.part_data.status === 'DONE'; }).length;
+  const inProgressCount = parts.filter(function(p) { return p.part_data && p.part_data.status === 'IN_PROGRESS'; }).length;
+  const blockedCount = parts.filter(function(p) { return p.part_data && p.part_data.status === 'BLOCKED'; }).length;
+  const totalParts = parts.length;
+  const pct = totalParts > 0 ? Math.round((doneCount / totalParts) * 100) : 0;
+
+  // First and last timestamps
+  const firstTime = entries[0].timestamp;
+  const lastTime = entries[entries.length - 1].timestamp;
+
+  // Duration
+  let durationStr = '';
+  if (firstTime && lastTime) {
+    const diffMs = new Date(lastTime) - new Date(firstTime);
+    const mins = Math.floor(diffMs / 60000);
+    const secs = Math.floor((diffMs % 60000) / 1000);
+    if (mins > 0) {
+      durationStr = mins + 'm ' + secs + 's';
+    } else {
+      durationStr = secs + 's';
+    }
+  }
+
+  // Update meta
+  meta.innerHTML =
+    '<span class="report-stat"><span class="report-stat-dot" style="background:var(--done)"></span> ' + doneCount + '/' + totalParts + ' complete</span>' +
+    (durationStr ? '<span class="report-stat">\u23F1 ' + durationStr + '</span>' : '') +
+    '<span class="report-stat">' + entries.length + ' events</span>';
+
+  // Summary bar
+  summaryBar.style.display = '';
+  summaryInner.innerHTML =
+    '<div class="summary-item"><div class="summary-label">Completed</div><div class="summary-value done">' + doneCount + '</div></div>' +
+    '<div class="summary-item"><div class="summary-label">In Progress</div><div class="summary-value remaining">' + inProgressCount + '</div></div>' +
+    (blockedCount > 0 ? '<div class="summary-item"><div class="summary-label">Blocked</div><div class="summary-value blocked">' + blockedCount + '</div></div>' : '') +
+    '<div class="summary-item"><div class="summary-label">Completion</div><div class="summary-value" style="color:var(--text)">' + pct + '%</div></div>';
+
+  // Progress track
+  progressTrack.style.display = '';
+  requestAnimationFrame(function() {
+    trackFill.style.width = pct + '%';
+  });
+
+  // Render timeline
+  timeline.innerHTML = '';
+  entries.forEach(function(entry) {
+    const pd = entry.part_data || {};
+    const status = pd.status || 'NOT_STARTED';
+    const cls = statusClass(status);
+
+    const card = document.createElement('div');
+    card.className = 'tl-entry';
+
+    let snapshotHtml = '';
+    if (entry.gcs_url && entry.gcs_url !== 'PENDING' && entry.gcs_url !== '') {
+      const snapId = 'snap-' + entry.id;
+      const safeUrl = entry.gcs_url.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      snapshotHtml =
+        '<div class="tl-snapshot" id="' + snapId + '">' +
+          '<button class="tl-snapshot-toggle" onclick="toggleSnap(\'' + snapId + '\')">' +
+            '<span class="tl-snapshot-chevron">\u25B6</span>' +
+            '\u{1F4F7} View Snapshot' +
+          '</button>' +
+          '<div class="tl-snapshot-body">' +
+            '<img src="' + safeUrl + '" alt="Build snapshot" loading="lazy" ' +
+              'onerror="handleSnapError(this)">' +
+            '<div class="tl-snapshot-error">' +
+              'Failed to load image<br>' +
+              '<a href="' + safeUrl + '" target="_blank" class="tl-snapshot-link">' + safeUrl + '</a>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+    }
+
+    card.innerHTML =
+      '<div class="tl-dot ' + cls + '">' + (cls === 'done' ? '\u2713' : '') + '</div>' +
+      '<div class="tl-card">' +
+        '<div class="tl-card-head">' +
+          '<div class="tl-card-info">' +
+            '<div class="tl-part-name">' + (pd.name || entry.part_id || 'Unknown Part') + '</div>' +
+            '<div class="tl-part-category">' + (pd.category || '') + '</div>' +
+          '</div>' +
+          '<div class="tl-status-badge ' + cls + '">' + statusLabel(status) + '</div>' +
+        '</div>' +
+        '<div class="tl-timestamp">' + formatTime(entry.timestamp) + '</div>' +
+        (pd.notes ? '<div class="tl-notes">' + pd.notes + '</div>' : '') +
+        snapshotHtml +
+      '</div>';
+
+    timeline.appendChild(card);
+  });
+
+  footer.style.display = '';
+})();
+
+// Global toggle for snapshot accordion
+function toggleSnap(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
+}
+
+// Handle snapshot image load failure
+function handleSnapError(img) {
+  console.error('Snapshot failed to load:', img.src);
+  img.style.display = 'none';
+  img.nextElementSibling.style.display = 'block';
+  // Auto-open the accordion so the error/link is visible
+  var snap = img.closest('.tl-snapshot');
+  if (snap) snap.classList.add('open');
+}
+</script>
+</body>
+</html>

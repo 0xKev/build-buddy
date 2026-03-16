@@ -44,6 +44,33 @@ def _log_to_firestore(snapshot: dict[str, str]) -> str:
     return doc_ref.id  # return the doc id, not the reference
 
 
+def get_build_timeline() -> list[dict]:
+    """Fetch all build events ordered by timestamp for the report."""
+    all_docs = (
+        _db.collection(FIRESTORE_COLLECTION_ID)
+        .order_by("timestamp", direction=firestore.Query.ASCENDING)
+        .stream()
+    )
+
+    timeline = []
+    for doc in all_docs:
+        data = doc.to_dict()
+        timeline.append(
+            {
+                "id": doc.id,
+                "timestamp": data.get("timestamp").isoformat()
+                if data.get("timestamp")
+                else None,
+                "tool_name": data.get("tool_name", ""),
+                "part_id": data.get("part_id", ""),
+                "part_data": data.get("part_data", {}),
+                "gcs_url": data.get("gcs_url", ""),
+            }
+        )
+
+    return timeline
+
+
 if __name__ == "__main__":
 
     class FakeTool:

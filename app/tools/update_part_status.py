@@ -73,7 +73,7 @@ def after_tool_report_log(
         blob_url = _upload_blob_to_gcs(tool_context)
         if blob_url:
             # update firestore with blob_url
-            _update_firestore_record(doc_id, {"gcs_url": blob_url})
+            _update_firestore_record(doc_id, blob_url)
 
 
 def _upload_blob_to_gcs(tool_context: ToolContext) -> str:
