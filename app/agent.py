@@ -1,8 +1,6 @@
 import os
 
-from google.adk.planners import BuiltInPlanner
 from google.adk.agents import Agent
-from google.adk.tools.google_search_tool import google_search
 from google.genai import types
 from app.tools.fetch_reference_image import get_connector_image
 from app.tools.pcpartpicker import (
@@ -10,7 +8,11 @@ from app.tools.pcpartpicker import (
     get_parts_from_pcpartpicker,
     show_user_part,
 )
-from app.tools.update_part_status import update_part_status
+from app.tools.update_part_status import (
+    before_tool_modifier,
+    update_part_status,
+    after_tool_report_log,
+)
 from app.tools.build_progress import get_build_progress
 
 pc_part_picker_txt = """
@@ -358,9 +360,9 @@ agent = Agent(
         get_build_progress,
         update_part_status,
     ],
+    before_tool_callback=before_tool_modifier,
+    after_tool_callback=after_tool_report_log,  # callback that saves reporting data to firestore and gcs
     generate_content_config=types.GenerateContentConfig(
         media_resolution=types.MediaResolution.MEDIA_RESOLUTION_MEDIUM,
     ),  # https://ai.google.dev/gemini-api/docs/media-resolution
 )
-
-# greeter_agent = Agent(name)

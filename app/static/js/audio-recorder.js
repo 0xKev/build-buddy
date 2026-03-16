@@ -2,6 +2,8 @@
  * Audio Recorder Worklet
  */
 
+const SEND_INTERVAL_MS = 50; // Flush every 50ms, to prevent overloading api
+
 let micStream;
 
 export async function startAudioRecorderWorklet(audioRecorderHandler) {
@@ -27,13 +29,48 @@ export async function startAudioRecorderWorklet(audioRecorderHandler) {
 
     // Connect the microphone source to the worklet.
     source.connect(audioRecorderNode);
+
+    // Buffer the audio sending
+    let pcmBuffer = [];
+    let pcmBufferBytes = 0;
+
+    // Flush as a single merged buffer
+    function flushBuffer() {
+        if (pcmBufferBytes === 0) {
+            return;
+        }
+        // TODO:
+        // Merge and reset 
+
+        const merged = new Uint8Array(pcmBufferBytes);
+        let offset = 0;
+        for (const chunk of pcmBuffer) {
+            merged.set(new Uint8Array(chunk), offset);
+            offset += chunk.byteLength;
+        }
+
+        // reset 
+        pcmBuffer = [];
+        pcmBufferBytes = 0;
+
+        audioRecorderHandler(merged.buffer)
+    }
+
+    // flush on fixed interval, prevent flooding
+    const flushTimer = setInterval(flushBuffer, SEND_INTERVAL_MS)
+
     audioRecorderNode.port.onmessage = (event) => {
         // Convert to 16-bit PCM
         const pcmData = convertFloat32ToPCM(event.data);
 
-        // Send the PCM data to the handler.
-        audioRecorderHandler(pcmData);
+        // Accumulate, don't send yet
+        pcmBuffer.push(pcmData);
+        pcmBufferBytes += pcmData.byteLength;
     };
+
+    // Attach cleanup so callers can cancel 
+    audioRecorderNode._flushTimer = flushTimer;
+
     return [audioRecorderNode, audioRecorderContext, micStream];
 }
 
