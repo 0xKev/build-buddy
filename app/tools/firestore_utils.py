@@ -1,18 +1,23 @@
+import json
 from typing import Literal, Optional
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.tool_context import ToolContext
 from mcp import Tool
 from typing import Any
 from datetime import datetime, timezone
-from google.cloud import firestore      # might have to move this down?
 import firebase_admin
 from firebase_admin import credentials
+from firebase_admin import firestore     
 
-cred = credentials.Certificate("path/to/service_account_key.json")
+
+cred = credentials.Certificate("service_account_key.json")
 firebase_admin.initialize_app(cred)
 
-db = firestore.Client()
-
+# this was me testing
+db = firestore.client()
+data = {'name': "Kim", 'parts': 40}
+db.collection('queries').add(data)
+##"""
 def _build_snapshot(
     tool: BaseTool,
     args: dict[str, Any],
@@ -30,17 +35,16 @@ def _build_snapshot(
 
 def _update_firestore_record(doc_id: str, fields: dict):
     # the main thing we'll only be updating is just "gcs_url"
+    """
+    db = firestore.client()
+    # adding documents with auto id
+    data = {_build_snapshot.__get__("tool_name"),_build_snapshot.__get__("timestamp"), _build_snapshot.__get__("response")}
+    db.collection('queries').add(data)
+    """
+    
     upload_url = fields.get("gcs_url")
     if upload_url:
         # update the firestore record
-        """
-        #url to exisiting database
-        cred = credentials.Certificate('path/to/serviceAccount.json')
-
-        app = firebase_admin.initialize_app(cred)
-
-        db = firestore.client()
-        """
         ...
 
 
