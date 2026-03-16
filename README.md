@@ -1,5 +1,7 @@
 ## Getting Started
 
+![Architecture Diagram](./gemini3_live_agent_hackathon_architectural_diagram.svg)
+
 ### Prerequisites
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) package manager
