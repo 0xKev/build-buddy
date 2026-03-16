@@ -13,11 +13,12 @@ from firebase_admin import firestore
 cred = credentials.Certificate("service_account_key.json")
 firebase_admin.initialize_app(cred)
 
-# this was me testing
+# this was me testing, then add to a function after
 db = firestore.client()
 data = {'name': "Kim", 'parts': 40}
 db.collection('queries').add(data)
-##"""
+
+
 def _build_snapshot(
     tool: BaseTool,
     args: dict[str, Any],
