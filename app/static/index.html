@@ -1,85 +1,119 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADK Gemini Live API Toolkit Demo</title>
-    <link rel="stylesheet" href="/static/css/style.css">
-    <script src="/static/js/app.js" type="module"></script>
-  </head>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>BuildBuddy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
 
-  <body>
-    <header>
-      <h1>ADK Gemini Live API Toolkit Demo</h1>
-      <div class="subtitle">Real-time bidirectional streaming with Google ADK</div>
-      <div class="header-options">
-        <label class="header-checkbox" title="Enable model to proactively respond without explicit prompts (Native audio models only)">
-          <input type="checkbox" id="enableProactivity">
-          <span>Proactivity</span>
-        </label>
-        <label class="header-checkbox" title="Enable model to detect and adapt to emotional cues (Native audio models only)">
-          <input type="checkbox" id="enableAffectiveDialog">
-          <span>Affective Dialog</span>
-        </label>
+<div class="app">
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="logo">
+      <div class="logo-mark">BB</div>
+      <div class="logo-text">Build<em>Buddy</em></div>
+      <span class="conn-dot disconnected" id="connDot" title="Disconnected"></span>
+    </div>
+    <div class="top-btns">
+      <button class="ibtn" id="btn-parts" title="Parts Reference">&#128295;</button>
+      <button class="ibtn" id="btn-cam" title="Camera">&#128247;</button>
+      <button class="ibtn" id="btn-share" title="Share Build Report">&#128279;</button>
+    </div>
+  </div>
+
+  <!-- Progress Strip -->
+  <div class="progress" id="progress">
+    <div class="prog-head" id="prog-toggle">
+      <span class="prog-label">Build Progress</span>
+      <div style="display:flex;align-items:center;">
+        <span class="prog-frac" id="prog-frac">0 / 8</span>
+        <span class="prog-chev">&#9650;</span>
       </div>
-      <div class="connection-status">
-        <span class="status-indicator" id="statusIndicator"></span>
-        <span id="statusText">Connecting...</span>
-      </div>
-    </header>
+    </div>
+    <div class="prog-track"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+    <div class="steps" id="steps-list"></div>
+  </div>
 
-    <div class="main-layout">
-      <div class="container">
-        <div id="messages"></div>
-
-        <div class="input-container">
-          <form id="messageForm">
-            <div class="input-wrapper">
-              <input
-                type="text"
-                id="message"
-                name="message"
-                placeholder="Type your message here..."
-                autocomplete="off"
-              />
-              <button type="submit" id="sendButton" disabled>Send</button>
-              <button type="button" id="startAudioButton">Start Audio</button>
-              <button type="button" id="cameraButton">📷 Camera</button>
-            </div>
-          </form>
+  <!-- Main Area -->
+  <div class="main">
+    <!-- Listening Panel -->
+    <div class="panel on" id="panel-listen">
+      <div class="listen-inner">
+        <div class="orb-wrap">
+          <div class="orb" id="orb"></div>
+          <div class="orb-ring"></div>
         </div>
-      </div>
-
-      <div class="console-panel">
-        <div class="console-header">
-          <h2>Event Console</h2>
-          <div class="console-controls">
-            <label class="console-checkbox">
-              <input type="checkbox" id="showAudioEvents">
-              <span>Show audio</span>
-            </label>
-            <button id="clearConsole" class="console-clear-btn">Clear</button>
-          </div>
-        </div>
-        <div id="consoleContent" class="console-content"></div>
+        <div class="orb-state" id="orb-state">Connecting...</div>
+        <div class="ai-msg" id="ai-msg">Waiting for connection to start your build session.</div>
+        <!-- User transcription preview -->
+        <div class="user-transcript" id="user-transcript"></div>
       </div>
     </div>
 
-    <!-- Camera Preview Modal -->
-    <div id="cameraModal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Camera Preview</h3>
-          <button id="closeCameraModal" class="close-btn">&times;</button>
+    <!-- Camera Panel -->
+    <div class="panel" id="panel-cam">
+      <video class="cam-feed" id="cam-feed" autoplay playsinline muted></video>
+      <div class="cam-overlay">
+        <div class="cam-label"><div class="cam-dot"></div> LIVE</div>
+        <div class="viewfinder">
+          <div class="vf tl"></div><div class="vf tr"></div>
+          <div class="vf bl"></div><div class="vf br"></div>
         </div>
-        <div class="modal-body">
-          <video id="cameraPreview" autoplay playsinline></video>
-        </div>
-        <div class="modal-footer">
-          <button id="cancelCamera" class="btn-secondary">Cancel</button>
-          <button id="captureImage" class="btn-primary">📷 Send Image</button>
-        </div>
+        <div class="cam-hint">Point at a part or connector</div>
       </div>
     </div>
-  </body>
+
+    <!-- Parts Popup -->
+    <div class="parts-popup" id="parts-popup">
+      <div class="popup-grip"></div>
+      <div class="popup-head">
+        <div class="popup-title">Parts Reference</div>
+        <button class="popup-x" id="popup-close">&#10005;</button>
+      </div>
+      <div class="parts-grid" id="parts-grid"></div>
+    </div>
+  </div>
+
+  <!-- Bottom Bar -->
+  <div class="bottom-bar">
+    <div class="speech-pill" id="speech-pill">
+      <div class="bars">
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      </div>
+      <div class="speech-text" id="speech-label">Connecting...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Part Detail Modal -->
+<div class="detail-overlay" id="detail-overlay">
+  <div class="detail-card">
+    <div class="det-head">
+      <div class="det-ico" id="det-ico"></div>
+      <div class="det-info">
+        <div class="det-title" id="det-title"></div>
+        <div class="det-sub" id="det-sub"></div>
+      </div>
+      <button class="det-x" id="det-close">&#10005;</button>
+    </div>
+    <div class="det-img" id="det-img"></div>
+    <div class="det-tips" id="det-tips"></div>
+  </div>
+</div>
+
+<!-- Connector/Part image popup from backend tool calls -->
+<div class="image-overlay" id="image-overlay">
+  <div class="image-card">
+    <button class="image-close" id="image-close">&#10005;</button>
+    <img id="image-popup-img" src="" alt="Part reference">
+    <div class="image-caption" id="image-caption"></div>
+  </div>
+</div>
+
+<script src="/static/js/app.js" type="module"></script>
+</body>
 </html>

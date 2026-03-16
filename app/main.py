@@ -17,6 +17,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from app.image_state import image_holder
+from app.tools.firestore_utils import get_build_timeline
 
 # Load environment variables from .env file BEFORE importing agent
 # load_dotenv(Path(__file__).parent / ".env")
@@ -65,6 +66,22 @@ runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)
 async def root():
     """Serve the index.html page."""
     return FileResponse(Path(__file__).parent / "static" / "index.html")
+
+
+# ========================================
+# Report Endpoint
+# ========================================
+@app.get("/report")
+async def get_report():
+    """Return all build timeline entries from Firestore, ordered by timestamp."""
+    timeline = get_build_timeline()
+    return {"timeline": timeline, "total_entries": len(timeline)}
+
+
+@app.get("/report/page")
+async def report_page():
+    """Serve the report HTML page. It's the same link all the time but works well for the hackathon especially if human reviewer wants to always be updated with progress"""
+    return FileResponse(Path(__file__).parent / "static" / "report.html")
 
 
 # ========================================

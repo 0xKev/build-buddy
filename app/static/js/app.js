@@ -1,841 +1,637 @@
 /**
- * app.js: JS code for the ADK Gemini Live API Toolkit demo app.
+ * app.js — BuildBuddy: integrated ADK Gemini Live API + BuildBuddy UI
+ *
+ * Keeps: WebSocket, audio worklets, camera capture pipeline
+ * Replaces: chat bubbles, event console, text input → orb UI, parts popup, progress stepper
  */
 
-/**
- * WebSocket handling
- */
+// ══════════════════════════════════════════════════════════════
+// ── UI HELPERS ──
+// ══════════════════════════════════════════════════════════════
 
-// Connect the server with a WebSocket connection
-const userId = "demo-user";
-const sessionId = "demo-session-" + Math.random().toString(36).substring(7);
-let websocket = null;
-let is_audio = false;
-let isToolRunning = false; // Prevent camera snapshot sent to ws when tool is running
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
 
-// Get checkbox elements for RunConfig options
-const enableProactivityCheckbox = document.getElementById("enableProactivity");
-const enableAffectiveDialogCheckbox = document.getElementById("enableAffectiveDialog");
+// ── Build Steps ──
+// IDs must match backend part_ids exactly
+const BUILD_STEPS = [
+    { id: "cpu", label: "Install CPU", sub: "AMD Ryzen 5 5600X" },
+    { id: "cooler", label: "Mount CPU Cooler", sub: "Noctua NH-U12S" },
+    { id: "motherboard", label: "Install Motherboard", sub: "Asus TUF X570-PLUS" },
+    { id: "ram", label: "Seat RAM", sub: "G.Skill Ripjaws V 32GB" },
+    { id: "storage", label: "Install Storage", sub: "Crucial T500 1TB NVMe" },
+    { id: "gpu", label: "Install GPU", sub: "RTX 3060 Ti AORUS" },
+    { id: "psu", label: "Install PSU", sub: "EVGA 750W Gold" },
+    { id: "case", label: "Assemble Case", sub: "Corsair 4000D Airflow" },
+    { id: "monitor", label: "Connect Monitor", sub: "LG 24GL600F 144Hz" },
+];
+const doneSet = new Set();
+let currentStep = 0;
 
-// Reconnect WebSocket when RunConfig options change
-function handleRunConfigChange() {
-    if (websocket && websocket.readyState === WebSocket.OPEN) {
-        addSystemMessage("Reconnecting with updated settings...");
-        addConsoleEntry('outgoing', 'Reconnecting due to settings change', {
-            proactivity: enableProactivityCheckbox.checked,
-            affective_dialog: enableAffectiveDialogCheckbox.checked
-        }, '🔄', 'system');
-        websocket.close();
-        // connectWebsocket() will be called by onclose handler after delay
+// ── Parts Reference Data ──
+const PARTS = [
+    {
+        id: "atx24",
+        icon: "\u{1F50C}",
+        name: "24-Pin ATX",
+        desc: "Main power",
+        detail: "ATX 24-Pin Power Connector",
+        sub: "Motherboard main power supply",
+        tips: [
+            {
+                ico: "\u{1F4A1}",
+                text: "The clip faces away from the board. Align the notch and push firmly until it clicks.",
+            },
+            {
+                ico: "\u26A0\uFE0F",
+                text: "This requires significant force \u2014 don't be afraid to press hard. A half-seated connector causes boot failures.",
+            },
+            {
+                ico: "\u{1F50D}",
+                text: "Located on the right edge of most ATX motherboards.",
+            },
+        ],
+        svg: `<svg viewBox="0 0 320 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="60" y="30" width="200" height="140" rx="8" fill="#1a1a24" stroke="#3a3a50"/>
+      <text x="160" y="22" text-anchor="middle" fill="#55556a" font-size="11" font-family="system-ui">24-PIN ATX CONNECTOR</text>
+      ${Array.from({ length: 12 }, (_, i) => `<rect x="${80 + i * 15}" y="55" width="10" height="18" rx="2" fill="#00d4aa" opacity="0.6"/>`).join("")}
+      ${Array.from({ length: 12 }, (_, i) => `<rect x="${80 + i * 15}" y="82" width="10" height="18" rx="2" fill="#00d4aa" opacity="0.4"/>`).join("")}
+      <rect x="72" y="110" width="176" height="24" rx="4" fill="none" stroke="#00d4aa" opacity="0.3" stroke-dasharray="4 2"/>
+      <text x="160" y="126" text-anchor="middle" fill="#00d4aa" opacity="0.5" font-size="10" font-family="system-ui">CLIP SIDE</text>
+    </svg>`,
+    },
+    {
+        id: "cpu8",
+        icon: "\u26A1",
+        name: "8-Pin CPU",
+        desc: "CPU power",
+        detail: "8-Pin CPU Power (EPS12V)",
+        sub: "Dedicated CPU power delivery",
+        tips: [
+            {
+                ico: "\u{1F4A1}",
+                text: "Usually at the top-left of the motherboard. Route the cable behind the case before mounting the board.",
+            },
+            {
+                ico: "\u26A0\uFE0F",
+                text: "Do NOT confuse with the PCIe 8-pin \u2014 they look similar but are keyed differently.",
+            },
+            {
+                ico: "\u{1F50D}",
+                text: "Some boards have both a 4+4 and an extra 4-pin. You only need the main 4+4 for most builds.",
+            },
+        ],
+        svg: `<svg viewBox="0 0 320 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="100" y="40" width="120" height="120" rx="8" fill="#1a1a24" stroke="#3a3a50"/>
+      <text x="160" y="32" text-anchor="middle" fill="#55556a" font-size="11" font-family="system-ui">8-PIN EPS12V</text>
+      ${Array.from({ length: 4 }, (_, i) => `<rect x="${118 + i * 22}" y="65" width="14" height="20" rx="2" fill="#ffaa33" opacity="0.6"/>`).join("")}
+      ${Array.from({ length: 4 }, (_, i) => `<rect x="${118 + i * 22}" y="95" width="14" height="20" rx="2" fill="#ffaa33" opacity="0.4"/>`).join("")}
+      <text x="160" y="140" text-anchor="middle" fill="#ffaa33" opacity="0.4" font-size="9" font-family="system-ui">CLIP</text>
+    </svg>`,
+    },
+    {
+        id: "pcie",
+        icon: "\u{1F3AE}",
+        name: "PCIe x16",
+        desc: "GPU slot",
+        detail: "PCIe x16 Slot",
+        sub: "Primary graphics card slot",
+        tips: [
+            {
+                ico: "\u{1F4A1}",
+                text: "Pull the retention clip open BEFORE inserting the GPU. Align the gold contacts and press evenly.",
+            },
+            {
+                ico: "\u26A0\uFE0F",
+                text: "Support the GPU \u2014 don't let it hang by the slot alone. Consider a GPU support bracket.",
+            },
+            {
+                ico: "\u{1F50D}",
+                text: "Use the topmost x16 slot for best bandwidth (closest to CPU).",
+            },
+        ],
+        svg: `<svg viewBox="0 0 320 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="30" y="80" width="240" height="40" rx="4" fill="#1a1a24" stroke="#3a3a50"/>
+      <text x="150" y="72" text-anchor="middle" fill="#55556a" font-size="11" font-family="system-ui">PCIe x16 SLOT</text>
+      <rect x="38" y="88" width="210" height="24" rx="2" fill="#00d4aa" opacity="0.15"/>
+      <line x1="38" y1="100" x2="248" y2="100" stroke="#00d4aa" opacity="0.3" stroke-dasharray="2 2"/>
+      <rect x="255" y="85" width="10" height="30" rx="2" fill="#ffaa33" opacity="0.5"/>
+      <text x="275" y="104" fill="#ffaa33" font-size="8" font-family="system-ui">clip</text>
+    </svg>`,
+    },
+    {
+        id: "sata",
+        icon: "\u{1F4BE}",
+        name: "SATA",
+        desc: "Storage data",
+        detail: "SATA Data & Power",
+        sub: "For SSDs and hard drives",
+        tips: [
+            {
+                ico: "\u{1F4A1}",
+                text: "SATA has an L-shaped connector \u2014 it only goes one way. Don't force it.",
+            },
+            {
+                ico: "\u26A0\uFE0F",
+                text: "You need BOTH a SATA data cable (to mobo) and SATA power cable (from PSU).",
+            },
+            {
+                ico: "\u{1F50D}",
+                text: "SATA ports are usually on the bottom-right of the motherboard.",
+            },
+        ],
+        svg: `<svg viewBox="0 0 320 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <text x="90" y="30" fill="#55556a" font-size="11" font-family="system-ui">SATA DATA</text>
+      <rect x="70" y="40" width="80" height="30" rx="4" fill="#1a1a24" stroke="#3a3a50"/>
+      <rect x="78" y="48" width="50" height="14" rx="2" fill="#00d4aa" opacity="0.4"/>
+      <rect x="128" y="48" width="14" height="14" rx="2" fill="#00d4aa" opacity="0.25"/>
+      <text x="230" y="30" fill="#55556a" font-size="11" font-family="system-ui">SATA POWER</text>
+      <rect x="190" y="40" width="100" height="30" rx="4" fill="#1a1a24" stroke="#3a3a50"/>
+      <rect x="198" y="48" width="70" height="14" rx="2" fill="#ffaa33" opacity="0.4"/>
+      <rect x="268" y="48" width="14" height="14" rx="2" fill="#ffaa33" opacity="0.25"/>
+      <text x="160" y="120" text-anchor="middle" fill="#9090a8" font-size="10" font-family="system-ui">Both cables required per drive</text>
+    </svg>`,
+    },
+    {
+        id: "fpanel",
+        icon: "\u{1F532}",
+        name: "Front Panel",
+        desc: "Case headers",
+        detail: "Front Panel Headers",
+        sub: "Power SW, Reset, LED+, LED-",
+        tips: [
+            {
+                ico: "\u{1F4A1}",
+                text: "Tiny cables from your case: POWER SW, RESET SW, HDD LED, POWER LED. Check your motherboard manual for the pin layout.",
+            },
+            {
+                ico: "\u26A0\uFE0F",
+                text: "Polarity matters for LEDs (+ and - sides). Power and Reset switches work either way.",
+            },
+            {
+                ico: "\u{1F50D}",
+                text: "Bottom-right corner of the motherboard. Use tweezers if your fingers are too big for the pins.",
+            },
+            {
+                ico: "\u2728",
+                text: "Some boards include a front-panel adapter block \u2014 plug cables into it off the board, then snap the whole block on.",
+            },
+        ],
+        svg: `<svg viewBox="0 0 320 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <text x="160" y="22" text-anchor="middle" fill="#55556a" font-size="11" font-family="system-ui">FRONT PANEL HEADER (F_PANEL)</text>
+      <rect x="80" y="35" width="160" height="80" rx="6" fill="#1a1a24" stroke="#3a3a50"/>
+      ${[0, 1, 2, 3, 4]
+                .map((r) =>
+                    [0, 1]
+                        .map(
+                            (c) =>
+                                `<circle cx="${105 + r * 30}" cy="${60 + c * 30}" r="5" fill="${r < 2 ? "#00d4aa" : r < 4 ? "#ffaa33" : "#ff4466"}" opacity="0.5"/>`
+                        )
+                        .join("")
+                )
+                .join("")}
+      <text x="105" y="105" fill="#00d4aa" font-size="7" font-family="system-ui">PWR</text>
+      <text x="135" y="105" fill="#00d4aa" font-size="7" font-family="system-ui">SW</text>
+      <text x="165" y="105" fill="#ffaa33" font-size="7" font-family="system-ui">HDD</text>
+      <text x="195" y="105" fill="#ffaa33" font-size="7" font-family="system-ui">RST</text>
+      <text x="225" y="105" fill="#ff4466" font-size="7" font-family="system-ui">LED</text>
+      <text x="160" y="150" text-anchor="middle" fill="#9090a8" font-size="9" font-family="system-ui">Check manual \u2014 layout varies per board</text>
+    </svg>`,
+    },
+    {
+        id: "m2",
+        icon: "\u{1F4E6}",
+        name: "M.2 NVMe",
+        desc: "Fast storage",
+        detail: "M.2 NVMe Slot",
+        sub: "High-speed SSD slot on motherboard",
+        tips: [
+            {
+                ico: "\u{1F4A1}",
+                text: "Insert at a 30\u00B0 angle into the M-key slot, then press down and secure with the standoff screw.",
+            },
+            {
+                ico: "\u26A0\uFE0F",
+                text: "Remove the heatsink cover first if your board has one. Peel the thermal pad film!",
+            },
+            {
+                ico: "\u{1F50D}",
+                text: "Usually between the CPU and the first PCIe slot.",
+            },
+        ],
+        svg: `<svg viewBox="0 0 320 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <text x="160" y="25" text-anchor="middle" fill="#55556a" font-size="11" font-family="system-ui">M.2 SLOT (M-KEY)</text>
+      <rect x="60" y="80" width="200" height="24" rx="3" fill="#1a1a24" stroke="#3a3a50"/>
+      <rect x="68" y="86" width="140" height="12" rx="2" fill="#00d4aa" opacity="0.2"/>
+      <circle cx="240" cy="92" r="6" fill="none" stroke="#ffaa33" opacity="0.5" stroke-width="1.5"/>
+      <text x="255" y="96" fill="#ffaa33" font-size="8" font-family="system-ui">screw</text>
+      <path d="M90 70 Q90 50 120 50 L160 50" stroke="#55556a" stroke-dasharray="3 2"/>
+      <text x="165" y="54" fill="#9090a8" font-size="8" font-family="system-ui">Insert at 30\u00B0 angle</text>
+      <text x="160" y="140" text-anchor="middle" fill="#9090a8" font-size="9" font-family="system-ui">Push down flat, then secure screw</text>
+    </svg>`,
+    },
+];
+
+// ── UI State ──
+let cameraOn = false;
+let partsOpen = false;
+let progressOpen = true;
+let liveFeedInterval = null;
+
+// ── Render functions ──
+function renderSteps() {
+    const list = $("#steps-list");
+    const done = doneSet.size;
+    const total = BUILD_STEPS.length;
+    $("#prog-frac").textContent = done + " / " + total;
+    $("#prog-fill").style.width = (done / total) * 100 + "%";
+
+    list.innerHTML = BUILD_STEPS.map((s, i) => {
+        const isDone = doneSet.has(s.id);
+        const isCurr = i === currentStep && !isDone;
+        const cls = isDone ? "done" : isCurr ? "now" : "";
+        return (
+            '<div class="step ' + cls + '">' +
+            '<div class="step-dot">' + (isDone ? "\u2713" : "") + "</div>" +
+            '<div class="step-info"><div class="step-text">' + s.label + "</div>" +
+            (s.sub ? '<div class="step-sub">' + s.sub + "</div>" : "") +
+            "</div></div>"
+        );
+    }).join("");
+}
+
+function renderParts() {
+    const grid = $("#parts-grid");
+    grid.innerHTML = PARTS.map(
+        (p) =>
+            '<div class="pcard" data-part="' +
+            p.id +
+            '">' +
+            '<div class="pcard-ico">' +
+            p.icon +
+            "</div>" +
+            '<div class="pcard-name">' +
+            p.name +
+            "</div>" +
+            '<div class="pcard-sub">' +
+            p.desc +
+            "</div>" +
+            "</div>"
+    ).join("");
+
+    grid.querySelectorAll(".pcard").forEach((c) => {
+        c.addEventListener("click", function () {
+            openDetail(this.dataset.part);
+        });
+    });
+}
+
+function openDetail(id) {
+    const p = PARTS.find((x) => x.id === id);
+    if (!p) return;
+    $("#det-ico").textContent = p.icon;
+    $("#det-title").textContent = p.detail;
+    $("#det-sub").textContent = p.sub;
+    $("#det-img").innerHTML = p.svg;
+    $("#det-tips").innerHTML = p.tips
+        .map(
+            (t) =>
+                '<div class="det-tip"><span class="det-tip-ico">' +
+                t.ico +
+                "</span><span>" +
+                t.text +
+                "</span></div>"
+        )
+        .join("");
+    $("#detail-overlay").classList.add("open");
+}
+
+function closeDetail() {
+    $("#detail-overlay").classList.remove("open");
+}
+
+function showPanel(name) {
+    $$(".panel").forEach((p) => p.classList.remove("on"));
+    $("#panel-" + name).classList.add("on");
+}
+
+function toggleParts() {
+    partsOpen = !partsOpen;
+    $("#parts-popup").classList.toggle("open", partsOpen);
+    $("#btn-parts").classList.toggle("on", partsOpen);
+}
+
+// ── Speech / Orb state ──
+function setSpeech(state) {
+    const pill = $("#speech-pill");
+    const label = $("#speech-label");
+    const orb = $("#orb");
+    const os = $("#orb-state");
+
+    pill.classList.remove("active");
+    orb.classList.remove("listening", "speaking");
+
+    if (state === "listening") {
+        pill.classList.add("active");
+        label.textContent = "Listening\u2026";
+        orb.classList.add("listening");
+        os.textContent = "Listening";
+    } else if (state === "speaking") {
+        pill.classList.add("active");
+        label.textContent = "AI Speaking\u2026";
+        orb.classList.add("speaking");
+        os.textContent = "Speaking";
+    } else {
+        label.textContent = "Tap to speak";
+        os.textContent = "Ready";
     }
 }
 
-// Add change listeners to RunConfig checkboxes
-enableProactivityCheckbox.addEventListener("change", handleRunConfigChange);
-enableAffectiveDialogCheckbox.addEventListener("change", handleRunConfigChange);
+function setMsg(msg) {
+    $("#ai-msg").textContent = msg;
+}
 
-// Build WebSocket URL with RunConfig options as query parameters
+function setUserTranscript(text) {
+    const el = $("#user-transcript");
+    if (text) {
+        el.textContent = '\u201C' + text + '\u201D';
+        el.classList.add("visible");
+    } else {
+        el.classList.remove("visible");
+    }
+}
+
+// ── Image popup (for backend tool call images) ──
+function showImagePopup(url, caption) {
+    const img = $("#image-popup-img");
+    const cap = $("#image-caption");
+    img.src = url;
+    if (caption) {
+        cap.textContent = caption;
+        cap.classList.add("visible");
+    } else {
+        cap.classList.remove("visible");
+    }
+    $("#image-overlay").classList.add("open");
+}
+
+function closeImagePopup() {
+    $("#image-overlay").classList.remove("open");
+    $("#image-popup-img").src = "";
+}
+
+// ── Connection status ──
+function updateConnectionStatus(connected) {
+    const dot = $("#connDot");
+    const os = $("#orb-state");
+    if (connected) {
+        dot.classList.remove("disconnected");
+        dot.title = "Connected";
+    } else {
+        dot.classList.add("disconnected");
+        dot.title = "Disconnected";
+        os.textContent = "Disconnected";
+    }
+}
+
+// ── Build progress update (from update_part_status tool) ──
+// Backend response shape:
+// {
+//   updated_part: "cpu",
+//   new_status: "DONE" | "IN_PROGRESS" | "NOT_STARTED" | "BLOCKED",
+//   part_notes: "...",
+//   completed_tasks: ["cpu", "ram"],
+//   remaining_tasks: ["cooler", "mobo", ...]
+// }
+function handlePartStatusUpdate(response) {
+    const partId = response.updated_part;
+    const status = response.new_status;
+
+    if (!partId) {
+        console.warn("update_part_status: no updated_part in response", response);
+        return;
+    }
+
+    if (status === "DONE") {
+        doneSet.add(partId);
+    } else if (status === "NOT_STARTED") {
+        // Undo / reset
+        doneSet.delete(partId);
+    } else if (status === "IN_PROGRESS") {
+        // Don't mark done, but ensure it's the active step
+        doneSet.delete(partId);
+    } else if (status === "BLOCKED") {
+        // Don't mark done; keep visible as current
+        doneSet.delete(partId);
+    }
+
+    // If backend gives us the full completed list, trust it as source of truth
+    if (response.completed_tasks && Array.isArray(response.completed_tasks)) {
+        doneSet.clear();
+        response.completed_tasks.forEach((id) => doneSet.add(id));
+    }
+
+    // Advance currentStep to the first non-done step
+    currentStep = BUILD_STEPS.findIndex((s) => !doneSet.has(s.id));
+    if (currentStep === -1) currentStep = BUILD_STEPS.length;
+
+    renderSteps();
+
+    // Check if build is complete
+    if (doneSet.size === BUILD_STEPS.length) {
+        setMsg("Build complete! Great job.");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── WEBSOCKET ──
+// ══════════════════════════════════════════════════════════════
+
+const userId = "demo-user";
+const sessionId =
+    "demo-session-" + Math.random().toString(36).substring(7);
+let websocket = null;
+let is_audio = false;
+let isToolRunning = false;
+
 function getWebSocketUrl() {
-    // Use wss:// for HTTPS pages, ws:// for HTTP (localhost development)
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const baseUrl = wsProtocol + "//" + window.location.host + "/ws/" + userId + "/" + sessionId;
+    const wsProtocol =
+        window.location.protocol === "https:" ? "wss:" : "ws:";
+    const baseUrl =
+        wsProtocol + "//" + window.location.host + "/ws/" + userId + "/" + sessionId;
+    // Hardcode proactivity + affective dialog on for demo, or adjust as needed
     const params = new URLSearchParams();
-
-    // Add proactivity option if checked
-    if (enableProactivityCheckbox && enableProactivityCheckbox.checked) {
-        params.append("proactivity", "true");
-    }
-
-    // Add affective dialog option if checked
-    if (enableAffectiveDialogCheckbox && enableAffectiveDialogCheckbox.checked) {
-        params.append("affective_dialog", "true");
-    }
-
+    // params.append("proactivity", "true");
+    // params.append("affective_dialog", "true");
     const queryString = params.toString();
     return queryString ? baseUrl + "?" + queryString : baseUrl;
 }
 
-// Get DOM elements
-const messageForm = document.getElementById("messageForm");
-const messageInput = document.getElementById("message");
-const messagesDiv = document.getElementById("messages");
-const statusIndicator = document.getElementById("statusIndicator");
-const statusText = document.getElementById("statusText");
-const consoleContent = document.getElementById("consoleContent");
-const clearConsoleBtn = document.getElementById("clearConsole");
-const showAudioEventsCheckbox = document.getElementById("showAudioEvents");
-let currentMessageId = null;
-let currentBubbleElement = null;
-let currentInputTranscriptionId = null;
-let currentInputTranscriptionElement = null;
-let currentOutputTranscriptionId = null;
-let currentOutputTranscriptionElement = null;
-let inputTranscriptionFinished = false; // Track if input transcription is complete for this turn
-let hasOutputTranscriptionInTurn = false; // Track if output transcription delivered the response
+// ── Transcription state ──
+let currentOutputText = "";
+let isReceivingOutput = false;
 
-// Helper function to clean spaces between CJK characters
-// Removes spaces between Japanese/Chinese/Korean characters while preserving spaces around Latin text
-function cleanCJKSpaces(text) {
-    // CJK Unicode ranges: Hiragana, Katakana, Kanji, CJK Unified Ideographs, Fullwidth forms
-    const cjkPattern = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\uff00-\uffef]/;
-
-    // Remove spaces between two CJK characters
-    return text.replace(/(\S)\s+(?=\S)/g, (match, char1) => {
-        // Get the character after the space(s)
-        const nextCharMatch = text.match(new RegExp(char1 + '\\s+(.)', 'g'));
-        if (nextCharMatch && nextCharMatch.length > 0) {
-            const char2 = nextCharMatch[0].slice(-1);
-            // If both characters are CJK, remove the space
-            if (cjkPattern.test(char1) && cjkPattern.test(char2)) {
-                return char1;
-            }
-        }
-        return match;
-    });
-}
-
-// Console logging functionality
-function formatTimestamp() {
-    const now = new Date();
-    return now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
-}
-
-function addConsoleEntry(type, content, data = null, emoji = null, author = null, isAudio = false) {
-    // Skip audio events if checkbox is unchecked
-    if (isAudio && !showAudioEventsCheckbox.checked) {
-        return;
-    }
-
-    const entry = document.createElement("div");
-    entry.className = `console-entry ${type}`;
-
-    const header = document.createElement("div");
-    header.className = "console-entry-header";
-
-    const leftSection = document.createElement("div");
-    leftSection.className = "console-entry-left";
-
-    // Add emoji icon if provided
-    if (emoji) {
-        const emojiIcon = document.createElement("span");
-        emojiIcon.className = "console-entry-emoji";
-        emojiIcon.textContent = emoji;
-        leftSection.appendChild(emojiIcon);
-    }
-
-    // Add expand/collapse icon
-    const expandIcon = document.createElement("span");
-    expandIcon.className = "console-expand-icon";
-    expandIcon.textContent = data ? "▶" : "";
-
-    const typeLabel = document.createElement("span");
-    typeLabel.className = "console-entry-type";
-    typeLabel.textContent = type === 'outgoing' ? '↑ Upstream' : type === 'incoming' ? '↓ Downstream' : '⚠ Error';
-
-    leftSection.appendChild(expandIcon);
-    leftSection.appendChild(typeLabel);
-
-    // Add author badge if provided
-    if (author) {
-        const authorBadge = document.createElement("span");
-        authorBadge.className = "console-entry-author";
-        authorBadge.textContent = author;
-        authorBadge.setAttribute('data-author', author);
-        leftSection.appendChild(authorBadge);
-    }
-
-    const timestamp = document.createElement("span");
-    timestamp.className = "console-entry-timestamp";
-    timestamp.textContent = formatTimestamp();
-
-    header.appendChild(leftSection);
-    header.appendChild(timestamp);
-
-    const contentDiv = document.createElement("div");
-    contentDiv.className = "console-entry-content";
-    contentDiv.textContent = content;
-
-    entry.appendChild(header);
-    entry.appendChild(contentDiv);
-
-    // JSON details (hidden by default)
-    let jsonDiv = null;
-    if (data) {
-        jsonDiv = document.createElement("div");
-        jsonDiv.className = "console-entry-json collapsed";
-        const pre = document.createElement("pre");
-        pre.textContent = JSON.stringify(data, null, 2);
-        jsonDiv.appendChild(pre);
-        entry.appendChild(jsonDiv);
-
-        // Make entry clickable if it has data
-        entry.classList.add("expandable");
-
-        // Toggle expand/collapse on click
-        entry.addEventListener("click", () => {
-            const isExpanded = !jsonDiv.classList.contains("collapsed");
-
-            if (isExpanded) {
-                // Collapse
-                jsonDiv.classList.add("collapsed");
-                expandIcon.textContent = "▶";
-                entry.classList.remove("expanded");
-            } else {
-                // Expand
-                jsonDiv.classList.remove("collapsed");
-                expandIcon.textContent = "▼";
-                entry.classList.add("expanded");
-            }
-        });
-    }
-
-    consoleContent.appendChild(entry);
-    consoleContent.scrollTop = consoleContent.scrollHeight;
-}
-
-function clearConsole() {
-    consoleContent.innerHTML = '';
-}
-
-// Clear console button handler
-clearConsoleBtn.addEventListener('click', clearConsole);
-
-// Update connection status UI
-function updateConnectionStatus(connected) {
-    if (connected) {
-        statusIndicator.classList.remove("disconnected");
-        statusText.textContent = "Connected";
-    } else {
-        statusIndicator.classList.add("disconnected");
-        statusText.textContent = "Disconnected";
-    }
-}
-
-// Create a message bubble element
-function createMessageBubble(text, isUser, isPartial = false) {
-    const messageDiv = document.createElement("div");
-    messageDiv.className = `message ${isUser ? "user" : "agent"}`;
-
-    const bubbleDiv = document.createElement("div");
-    bubbleDiv.className = "bubble";
-
-    const textP = document.createElement("p");
-    textP.className = "bubble-text";
-    textP.textContent = text;
-
-    // Add typing indicator for partial messages
-    if (isPartial && !isUser) {
-        const typingSpan = document.createElement("span");
-        typingSpan.className = "typing-indicator";
-        textP.appendChild(typingSpan);
-    }
-
-    bubbleDiv.appendChild(textP);
-    messageDiv.appendChild(bubbleDiv);
-
-    return messageDiv;
-}
-
-// Create an image message bubble element
-function createImageBubble(imageDataUrl, isUser) {
-    const messageDiv = document.createElement("div");
-    messageDiv.className = `message ${isUser ? "user" : "agent"}`;
-
-    const bubbleDiv = document.createElement("div");
-    bubbleDiv.className = "bubble image-bubble";
-
-    const img = document.createElement("img");
-    img.src = imageDataUrl;
-    img.className = "bubble-image";
-    img.alt = "Captured image";
-
-    bubbleDiv.appendChild(img);
-    messageDiv.appendChild(bubbleDiv);
-
-    return messageDiv;
-}
-
-// Update existing message bubble text
-function updateMessageBubble(element, text, isPartial = false) {
-    const textElement = element.querySelector(".bubble-text");
-
-    // Remove existing typing indicator
-    const existingIndicator = textElement.querySelector(".typing-indicator");
-    if (existingIndicator) {
-        existingIndicator.remove();
-    }
-
-    textElement.textContent = text;
-
-    // Add typing indicator for partial messages
-    if (isPartial) {
-        const typingSpan = document.createElement("span");
-        typingSpan.className = "typing-indicator";
-        textElement.appendChild(typingSpan);
-    }
-}
-
-// Add a system message
-function addSystemMessage(text) {
-    const messageDiv = document.createElement("div");
-    messageDiv.className = "system-message";
-    messageDiv.textContent = text;
-    messagesDiv.appendChild(messageDiv);
-    scrollToBottom();
-}
-
-// Scroll to bottom of messages
-function scrollToBottom() {
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
-
-// Sanitize event data for console display (replace large audio data with summary)
-function sanitizeEventForDisplay(event) {
-    // Deep clone the event object
-    const sanitized = JSON.parse(JSON.stringify(event));
-
-    // Check for audio data in content.parts
-    if (sanitized.content && sanitized.content.parts) {
-        sanitized.content.parts = sanitized.content.parts.map(part => {
-            if (part.inlineData && part.inlineData.data) {
-                // Calculate byte size (base64 string length / 4 * 3, roughly)
-                const byteSize = Math.floor(part.inlineData.data.length * 0.75);
-                return {
-                    ...part,
-                    inlineData: {
-                        ...part.inlineData,
-                        data: `(${byteSize.toLocaleString()} bytes)`
-                    }
-                };
-            }
-            return part;
-        });
-    }
-
-    return sanitized;
-}
-
-// WebSocket handlers
 function connectWebsocket() {
-    // Connect websocket
     const ws_url = getWebSocketUrl();
     websocket = new WebSocket(ws_url);
 
-    // Handle connection open
     websocket.onopen = function () {
-        console.log("WebSocket connection opened.");
+        console.log("WebSocket connected.");
         updateConnectionStatus(true);
-        addSystemMessage("Connected to ADK streaming server");
-
-        // Log to console
-        addConsoleEntry('incoming', 'WebSocket Connected', {
-            userId: userId,
-            sessionId: sessionId,
-            url: ws_url
-        }, '🔌', 'system');
-
-        // Enable the Send button
-        document.getElementById("sendButton").disabled = false;
-        addSubmitHandler();
+        setMsg("Connected! Tap the mic to start your build session.");
+        $("#speech-label").textContent = "Tap to speak";
+        $("#orb-state").textContent = "Ready";
     };
 
-    // Handle incoming messages
     websocket.onmessage = function (event) {
-        // Parse the incoming ADK Event
         const adkEvent = JSON.parse(event.data);
-        // Temporary debug - log all event types
-        if (adkEvent.interrupted) console.log(">>> INTERRUPTED EVENT FIRED");
-        if (adkEvent.turnComplete) console.log(">>> TURN COMPLETE EVENT FIRED");
+        console.log("[AGENT->CLIENT]", JSON.stringify(adkEvent, null, 2));
 
-        console.log("[AGENT TO CLIENT] ", JSON.stringify(adkEvent, null, 2));
-
-        // Log to console panel
-        let eventSummary = 'Event';
-        let eventEmoji = '📨'; // Default emoji
-        const author = adkEvent.author || 'system';
-
-        if (adkEvent.turnComplete) {
-            console.log(">>> TURN COMPLETE - resetting audioInterrupted");
-            // pendingImageRequest = false;
-            isToolRunning = false;
-            eventSummary = 'Turn Complete';
-            eventEmoji = '✅';
-
-        } else if (adkEvent.interrupted) {
-            eventSummary = 'Interrupted';
-            isToolRunning = false;
-            eventEmoji = '⏸️';
-        } else if (adkEvent.inputTranscription) {
-            // Show transcription text in summary
-            const transcriptionText = adkEvent.inputTranscription.text || '';
-            const truncated = transcriptionText.length > 60
-                ? transcriptionText.substring(0, 60) + '...'
-                : transcriptionText;
-            eventSummary = `Input Transcription: "${truncated}"`;
-            eventEmoji = '📝';
-        } else if (adkEvent.outputTranscription) {
-            // Show transcription text in summary
-            const transcriptionText = adkEvent.outputTranscription.text || '';
-            const truncated = transcriptionText.length > 60
-                ? transcriptionText.substring(0, 60) + '...'
-                : transcriptionText;
-            eventSummary = `Output Transcription: "${truncated}"`;
-            eventEmoji = '📝';
-        } else if (adkEvent.usageMetadata) {
-            // Show token usage information
-            const usage = adkEvent.usageMetadata;
-            const promptTokens = usage.promptTokenCount || 0;
-            const responseTokens = usage.candidatesTokenCount || 0;
-            const totalTokens = usage.totalTokenCount || 0;
-            eventSummary = `Token Usage: ${totalTokens.toLocaleString()} total (${promptTokens.toLocaleString()} prompt + ${responseTokens.toLocaleString()} response)`;
-            eventEmoji = '📊';
-        } else if (adkEvent.content && adkEvent.content.parts) {
-            const hasText = adkEvent.content.parts.some(p => p.text);
-            const hasAudio = adkEvent.content.parts.some(p => p.inlineData);
-            const hasExecutableCode = adkEvent.content.parts.some(p => p.executableCode);
-            const hasCodeExecutionResult = adkEvent.content.parts.some(p => p.codeExecutionResult);
-
-            if (hasExecutableCode) {
-                // Show executable code
-                const codePart = adkEvent.content.parts.find(p => p.executableCode);
-                if (codePart && codePart.executableCode) {
-                    const code = codePart.executableCode.code || '';
-                    const language = codePart.executableCode.language || 'unknown';
-                    const truncated = code.length > 60
-                        ? code.substring(0, 60).replace(/\n/g, ' ') + '...'
-                        : code.replace(/\n/g, ' ');
-                    eventSummary = `Executable Code (${language}): ${truncated}`;
-                    eventEmoji = '💻';
-                }
-            }
-
-            if (hasCodeExecutionResult) {
-                // Show code execution result
-                const resultPart = adkEvent.content.parts.find(p => p.codeExecutionResult);
-                if (resultPart && resultPart.codeExecutionResult) {
-                    const outcome = resultPart.codeExecutionResult.outcome || 'UNKNOWN';
-                    const output = resultPart.codeExecutionResult.output || '';
-                    const truncatedOutput = output.length > 60
-                        ? output.substring(0, 60).replace(/\n/g, ' ') + '...'
-                        : output.replace(/\n/g, ' ');
-                    eventSummary = `Code Execution Result (${outcome}): ${truncatedOutput}`;
-                    eventEmoji = outcome === 'OUTCOME_OK' ? '✅' : '❌';
-                }
-            }
-
-            if (hasText) {
-                // Show text preview in summary
-                const textPart = adkEvent.content.parts.find(p => p.text);
-                if (textPart && textPart.text) {
-                    const text = textPart.text;
-                    const truncated = text.length > 80
-                        ? text.substring(0, 80) + '...'
-                        : text;
-                    eventSummary = `Text: "${truncated}"`;
-                    eventEmoji = '💭';
-                } else {
-                    eventSummary = 'Text Response';
-                    eventEmoji = '💭';
-                }
-            }
-
-            if (hasAudio) {
-                // Extract audio info for summary
-                const audioPart = adkEvent.content.parts.find(p => p.inlineData);
-                // Guard against interrupted
-                if (audioPart && audioPart.inlineData) {
-                    const mimeType = audioPart.inlineData.mimeType || 'unknown';
-                    const dataLength = audioPart.inlineData.data ? audioPart.inlineData.data.length : 0;
-                    // Base64 string length / 4 * 3 gives approximate bytes
-                    const byteSize = Math.floor(dataLength * 0.75);
-                    eventSummary = `Audio Response: ${mimeType} (${byteSize.toLocaleString()} bytes)`;
-                    eventEmoji = '🔊';
-                } else {
-                    eventSummary = 'Audio Response';
-                    eventEmoji = '🔊';
-                }
-
-                // Log audio event with isAudio flag (filtered by checkbox)
-                const sanitizedEvent = sanitizeEventForDisplay(adkEvent);
-                addConsoleEntry('incoming', eventSummary, sanitizedEvent, eventEmoji, author, true);
-            }
-        }
-
-        // Create a sanitized version for console display (replace large audio data with summary)
-        // Skip if already logged as audio event above
-        const isAudioOnlyEvent = adkEvent.content && adkEvent.content.parts &&
-            adkEvent.content.parts.some(p => p.inlineData) &&
-            !adkEvent.content.parts.some(p => p.text);
-        if (!isAudioOnlyEvent) {
-            const sanitizedEvent = sanitizeEventForDisplay(adkEvent);
-            addConsoleEntry('incoming', eventSummary, sanitizedEvent, eventEmoji, author);
-        }
-
-        // Handle turn complete event
+        // ── Turn complete ──
         if (adkEvent.turnComplete === true) {
-            // Remove typing indicator from current message
-            if (currentBubbleElement) {
-                const textElement = currentBubbleElement.querySelector(".bubble-text");
-                const typingIndicator = textElement.querySelector(".typing-indicator");
-                if (typingIndicator) {
-                    typingIndicator.remove();
-                }
-            }
-            // Remove typing indicator from current output transcription
-            if (currentOutputTranscriptionElement) {
-                const textElement = currentOutputTranscriptionElement.querySelector(".bubble-text");
-                const typingIndicator = textElement.querySelector(".typing-indicator");
-                if (typingIndicator) {
-                    typingIndicator.remove();
-                }
-            }
-            currentMessageId = null;
-            currentBubbleElement = null;
-            currentOutputTranscriptionId = null;
-            currentOutputTranscriptionElement = null;
-            inputTranscriptionFinished = false; // Reset for next turn
-            hasOutputTranscriptionInTurn = false; // Reset for next turn
+            isToolRunning = false;
+            isReceivingOutput = false;
+            currentOutputText = "";
+            setSpeech("idle");
+            setUserTranscript(""); // clear user transcript
             return;
         }
 
-        // Handle interrupted event
+        // ── Interrupted ──
         if (adkEvent.interrupted === true) {
             isToolRunning = false;
+            isReceivingOutput = false;
+            currentOutputText = "";
             if (audioPlayerNode) {
                 audioPlayerNode.port.postMessage({ command: "endOfAudio" });
             }
-
-            // Keep the partial message but mark it as interrupted
-            if (currentBubbleElement) {
-                const textElement = currentBubbleElement.querySelector(".bubble-text");
-
-                // Remove typing indicator
-                const typingIndicator = textElement.querySelector(".typing-indicator");
-                if (typingIndicator) {
-                    typingIndicator.remove();
-                }
-
-                // Add interrupted marker
-                currentBubbleElement.classList.add("interrupted");
-            }
-
-            // Keep the partial output transcription but mark it as interrupted
-            if (currentOutputTranscriptionElement) {
-                const textElement = currentOutputTranscriptionElement.querySelector(".bubble-text");
-
-                // Remove typing indicator
-                const typingIndicator = textElement.querySelector(".typing-indicator");
-                if (typingIndicator) {
-                    typingIndicator.remove();
-                }
-
-                // Add interrupted marker
-                currentOutputTranscriptionElement.classList.add("interrupted");
-            }
-
-            // Reset state so new content creates a new bubble
-            currentMessageId = null;
-            currentBubbleElement = null;
-            currentOutputTranscriptionId = null;
-            currentOutputTranscriptionElement = null;
-            inputTranscriptionFinished = false; // Reset for next turn
-            hasOutputTranscriptionInTurn = false; // Reset for next turn
+            setSpeech("idle");
             return;
         }
 
-        // Handle input transcription (user's spoken words)
+        // ── Input transcription (what the user is saying) ──
         if (adkEvent.inputTranscription && adkEvent.inputTranscription.text) {
-            const transcriptionText = adkEvent.inputTranscription.text;
-            const isFinished = adkEvent.inputTranscription.finished;
-
-            if (transcriptionText) {
-                // Ignore late-arriving transcriptions after we've finished for this turn
-                if (inputTranscriptionFinished) {
-                    return;
-                }
-
-                if (currentInputTranscriptionId == null) {
-                    // Create new transcription bubble
-                    currentInputTranscriptionId = Math.random().toString(36).substring(7);
-                    // Clean spaces between CJK characters
-                    const cleanedText = cleanCJKSpaces(transcriptionText);
-                    currentInputTranscriptionElement = createMessageBubble(cleanedText, true, !isFinished);
-                    currentInputTranscriptionElement.id = currentInputTranscriptionId;
-
-                    // Add a special class to indicate it's a transcription
-                    currentInputTranscriptionElement.classList.add("transcription");
-
-                    messagesDiv.appendChild(currentInputTranscriptionElement);
-                } else {
-                    // Update existing transcription bubble only if model hasn't started responding
-                    // This prevents late partial transcriptions from overwriting complete ones
-                    if (currentOutputTranscriptionId == null && currentMessageId == null) {
-                        if (isFinished) {
-                            // Final transcription contains the complete text, replace entirely
-                            const cleanedText = cleanCJKSpaces(transcriptionText);
-                            updateMessageBubble(currentInputTranscriptionElement, cleanedText, false);
-                        } else {
-                            // Partial transcription - append to existing text
-                            const existingText = currentInputTranscriptionElement.querySelector(".bubble-text").textContent;
-                            // Remove typing indicator if present
-                            const cleanText = existingText.replace(/\.\.\.$/, '');
-                            // Clean spaces between CJK characters before updating
-                            const accumulatedText = cleanCJKSpaces(cleanText + transcriptionText);
-                            updateMessageBubble(currentInputTranscriptionElement, accumulatedText, true);
-                        }
-                    }
-                }
-
-                // If transcription is finished, reset the state and mark as complete
-                if (isFinished) {
-                    currentInputTranscriptionId = null;
-                    currentInputTranscriptionElement = null;
-                    inputTranscriptionFinished = true; // Prevent duplicate bubbles from late events
-                }
-
-                scrollToBottom();
-            }
+            const text = adkEvent.inputTranscription.text;
+            setSpeech("listening");
+            setUserTranscript(text);
         }
 
-        // Handle output transcription (model's spoken words)
+        // ── Output transcription (what the AI is saying) ──
         if (adkEvent.outputTranscription && adkEvent.outputTranscription.text) {
-            const transcriptionText = adkEvent.outputTranscription.text;
+            const text = adkEvent.outputTranscription.text;
             const isFinished = adkEvent.outputTranscription.finished;
-            hasOutputTranscriptionInTurn = true;
 
-            if (transcriptionText) {
-                // Finalize any active input transcription when server starts responding
-                if (currentInputTranscriptionId != null && currentOutputTranscriptionId == null) {
-                    // This is the first output transcription - finalize input transcription
-                    const textElement = currentInputTranscriptionElement.querySelector(".bubble-text");
-                    const typingIndicator = textElement.querySelector(".typing-indicator");
-                    if (typingIndicator) {
-                        typingIndicator.remove();
-                    }
-                    // Reset input transcription state so next user input creates new balloon
-                    currentInputTranscriptionId = null;
-                    currentInputTranscriptionElement = null;
-                    inputTranscriptionFinished = true; // Prevent duplicate bubbles from late events
-                }
+            setSpeech("speaking");
 
-                if (currentOutputTranscriptionId == null) {
-                    // Create new transcription bubble for agent
-                    currentOutputTranscriptionId = Math.random().toString(36).substring(7);
-                    currentOutputTranscriptionElement = createMessageBubble(transcriptionText, false, !isFinished);
-                    currentOutputTranscriptionElement.id = currentOutputTranscriptionId;
-
-                    // Add a special class to indicate it's a transcription
-                    currentOutputTranscriptionElement.classList.add("transcription");
-
-                    messagesDiv.appendChild(currentOutputTranscriptionElement);
-                } else {
-                    // Update existing transcription bubble
-                    if (isFinished) {
-                        // Final transcription contains the complete text, replace entirely
-                        updateMessageBubble(currentOutputTranscriptionElement, transcriptionText, false);
-                    } else {
-                        // Partial transcription - append to existing text
-                        const existingText = currentOutputTranscriptionElement.querySelector(".bubble-text").textContent;
-                        // Remove typing indicator if present
-                        const cleanText = existingText.replace(/\.\.\.$/, '');
-                        updateMessageBubble(currentOutputTranscriptionElement, cleanText + transcriptionText, true);
-                    }
-                }
-
-                // If transcription is finished, reset the state
-                if (isFinished) {
-                    currentOutputTranscriptionId = null;
-                    currentOutputTranscriptionElement = null;
-                }
-
-                scrollToBottom();
+            if (isFinished) {
+                // Final transcription — show complete text
+                setMsg(text);
+                currentOutputText = "";
+            } else {
+                // Partial — accumulate
+                currentOutputText += text;
+                setMsg(currentOutputText);
             }
+            isReceivingOutput = true;
         }
 
-        // Handle content events (text or audio)
+        // ── Content parts (audio, text, tool calls/responses) ──
         if (adkEvent.content && adkEvent.content.parts) {
-            const hasToolCall = adkEvent.content.parts.some(p => p.functionCall);
-            if (hasToolCall) {
-                console.warn(">>> TOOL START: Muting microphone.");
-                isToolRunning = true;
-            }
             const parts = adkEvent.content.parts;
 
-            // Finalize any active input transcription when server starts responding with content
-            if (currentInputTranscriptionId != null && currentMessageId == null && currentOutputTranscriptionId == null) {
-                // This is the first content event - finalize input transcription
-                const textElement = currentInputTranscriptionElement.querySelector(".bubble-text");
-                const typingIndicator = textElement.querySelector(".typing-indicator");
-                if (typingIndicator) {
-                    typingIndicator.remove();
-                }
-                // Reset input transcription state so next user input creates new balloon
-                currentInputTranscriptionId = null;
-                currentInputTranscriptionElement = null;
-                inputTranscriptionFinished = true; // Prevent duplicate bubbles from late events
+            // Check for tool start
+            const hasToolCall = parts.some((p) => p.functionCall);
+            if (hasToolCall) {
+                isToolRunning = true;
             }
 
             for (const part of parts) {
-                // Display connector parts
-                if (part.functionResponse && part.functionResponse.name == "get_connector_image") {
+                // ── update_part_status tool response → update build progress ──
+                if (
+                    part.functionResponse &&
+                    part.functionResponse.name === "update_part_status"
+                ) {
+                    const response = part.functionResponse.response;
+                    if (response) {
+                        handlePartStatusUpdate(response);
+                    }
+                    continue;
+                }
+
+                // ── get_connector_image tool response → show image popup ──
+                if (
+                    part.functionResponse &&
+                    part.functionResponse.name === "get_connector_image"
+                ) {
                     const response = part.functionResponse.response;
                     if (response && response.connector_url) {
-                        const imageBubble = createImageBubble(response.connector_url, false);
-                        messagesDiv.appendChild(imageBubble);
-                        scrollToBottom();
+                        showImagePopup(response.connector_url, "Connector Reference");
                     }
-                    // continue; // Can skip if it's a tool call, since I'm using just my custom ref img tool
+                    continue;
                 }
 
-                // Display user build parts
-                if (part.functionResponse && part.functionResponse.name == "show_user_part") {
+                // ── show_user_part tool response → show image popup ──
+                if (
+                    part.functionResponse &&
+                    part.functionResponse.name === "show_user_part"
+                ) {
                     const response = part.functionResponse.response;
                     if (response && response.image_url) {
-                        const imageBubble = createImageBubble(response.image_url, false);
-                        messagesDiv.appendChild(imageBubble);
-                        scrollToBottom();
+                        showImagePopup(response.image_url, "Part Reference");
                     }
-                    // continue; // Can skip if it's a tool call, since I'm using just my custom ref img tool
+                    continue;
                 }
 
-
-                // Handle inline data (audio)
+                // ── Audio playback ──
                 if (part.inlineData) {
                     const mimeType = part.inlineData.mimeType;
                     const data = part.inlineData.data;
-
-                    // Add guard for audio player if interrupted
                     if (mimeType && mimeType.startsWith("audio/pcm") && audioPlayerNode) {
-                        console.log(">>> PLAYING AUDIO CHUNK");
+                        setSpeech("speaking");
                         audioPlayerNode.port.postMessage(base64ToArray(data));
-                    } else if (!audioPlayerNode) {
-                        console.log(">>> DROPPING AUDIO CHUNK (interrupted)");
                     }
                 }
 
-
-                // Handle text
-                if (part.text) {
-                    // Skip thinking/reasoning text from chat bubbles (shown in event console)
-                    if (part.thought) {
-                        continue;
+                // ── Text content (fallback if no output transcription) ──
+                if (part.text && !part.thought) {
+                    // Only show text in the UI if output transcription isn't handling it
+                    if (!isReceivingOutput) {
+                        setSpeech("speaking");
+                        if (adkEvent.partial) {
+                            currentOutputText += part.text;
+                            setMsg(currentOutputText);
+                        } else {
+                            setMsg(part.text);
+                            currentOutputText = "";
+                        }
                     }
-
-                    // Skip final aggregated content when output transcription already
-                    // delivered the response (prevents duplicate thinking text replay)
-                    if (!adkEvent.partial && hasOutputTranscriptionInTurn) {
-                        continue;
-                    }
-
-                    // Add a new message bubble for a new turn
-                    if (currentMessageId == null) {
-                        currentMessageId = Math.random().toString(36).substring(7);
-                        currentBubbleElement = createMessageBubble(part.text, false, true);
-                        currentBubbleElement.id = currentMessageId;
-                        messagesDiv.appendChild(currentBubbleElement);
-                    } else {
-                        // Update the existing message bubble with accumulated text
-                        const existingText = currentBubbleElement.querySelector(".bubble-text").textContent;
-                        // Remove the "..." if present
-                        const cleanText = existingText.replace(/\.\.\.$/, '');
-                        updateMessageBubble(currentBubbleElement, cleanText + part.text, true);
-                    }
-
-                    // Scroll down to the bottom of the messagesDiv
-                    scrollToBottom();
                 }
             }
         }
     };
 
-    // Handle connection close
     websocket.onclose = function () {
-        console.log("WebSocket connection closed.");
+        console.log("WebSocket closed.");
         updateConnectionStatus(false);
-        document.getElementById("sendButton").disabled = true;
-        addSystemMessage("Connection closed. Reconnecting in 5 seconds...");
-
-        // Log to console
-        addConsoleEntry('error', 'WebSocket Disconnected', {
-            status: 'Connection closed',
-            reconnecting: true,
-            reconnectDelay: '5 seconds'
-        }, '🔌', 'system');
-
+        setMsg("Connection lost. Reconnecting...");
+        setSpeech("idle");
         setTimeout(function () {
-            console.log("Reconnecting...");
-
-            // Log reconnection attempt to console
-            addConsoleEntry('outgoing', 'Reconnecting to ADK server...', {
-                userId: userId,
-                sessionId: sessionId
-            }, '🔄', 'system');
-
             connectWebsocket();
         }, 5000);
     };
 
     websocket.onerror = function (e) {
-        console.log("WebSocket error: ", e);
+        console.error("WebSocket error:", e);
         updateConnectionStatus(false);
-
-        // Log to console
-        addConsoleEntry('error', 'WebSocket Error', {
-            error: e.type,
-            message: 'Connection error occurred'
-        }, '⚠️', 'system');
-    };
-}
-connectWebsocket();
-
-// Add submit handler to the form
-function addSubmitHandler() {
-    messageForm.onsubmit = function (e) {
-        e.preventDefault();
-        const message = messageInput.value.trim();
-        if (message) {
-            // Add user message bubble
-            const userBubble = createMessageBubble(message, true, false);
-            messagesDiv.appendChild(userBubble);
-            scrollToBottom();
-
-            // Clear input
-            messageInput.value = "";
-
-            // Send message to server
-            sendMessage(message);
-            console.log("[CLIENT TO AGENT] " + message);
-        }
-        return false;
     };
 }
 
-// Send a message to the server as JSON
-function sendMessage(message) {
-    if (websocket && websocket.readyState == WebSocket.OPEN) {
-        const jsonMessage = JSON.stringify({
-            type: "text",
-            text: message
-        });
-        websocket.send(jsonMessage);
-
-        // Log to console panel
-        addConsoleEntry('outgoing', 'User Message: ' + message, null, '💬', 'user');
-    }
-}
-
-// Decode Base64 data to Array
-// Handles both standard base64 and base64url encoding
+// ── Base64 → ArrayBuffer ──
 function base64ToArray(base64) {
-    // Convert base64url to standard base64
-    // Replace URL-safe characters: - with +, _ with /
-    let standardBase64 = base64.replace(/-/g, '+').replace(/_/g, '/');
-
-    // Add padding if needed
+    let standardBase64 = base64.replace(/-/g, "+").replace(/_/g, "/");
     while (standardBase64.length % 4) {
-        standardBase64 += '=';
+        standardBase64 += "=";
     }
-
     const binaryString = window.atob(standardBase64);
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
@@ -845,188 +641,96 @@ function base64ToArray(base64) {
     return bytes.buffer;
 }
 
-/**
- * Camera handling
- */
+// ══════════════════════════════════════════════════════════════
+// ── CAMERA ──
+// ══════════════════════════════════════════════════════════════
 
-const cameraButton = document.getElementById("cameraButton");
-const cameraModal = document.getElementById("cameraModal");
-const cameraPreview = document.getElementById("cameraPreview");
-const closeCameraModal = document.getElementById("closeCameraModal");
-const cancelCamera = document.getElementById("cancelCamera");
-const captureImageBtn = document.getElementById("captureImage");
+async function toggleCam() {
+    if (cameraOn) {
+        // Stop camera
+        const feed = $("#cam-feed");
+        if (feed.srcObject) {
+            feed.srcObject.getTracks().forEach((t) => t.stop());
+            feed.srcObject = null;
+        }
+        // Stop live feed interval
+        if (liveFeedInterval) {
+            clearInterval(liveFeedInterval);
+            liveFeedInterval = null;
+        }
+        cameraOn = false;
+        $("#btn-cam").classList.remove("on");
+        showPanel("listen");
+    } else {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: "environment",
+                    width: { ideal: 1024 },
+                    height: { ideal: 1024 },
+                },
+                audio: false,
+            });
+            $("#cam-feed").srcObject = stream;
+            cameraOn = true;
+            $("#btn-cam").classList.add("on");
+            showPanel("cam");
 
-let cameraStream = null;
-
-// Open camera modal and start preview
-async function openCameraPreview() {
-    try {
-        // Request access to the user's webcam
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 1024 },
-                height: { ideal: 1024 },
-                facingMode: 'user'
-            }
-        });
-
-        // Set the stream to the video element
-        cameraPreview.srcObject = cameraStream;
-
-        // Show the modal
-        cameraModal.classList.add('show');
-
-    } catch (error) {
-        console.error('Error accessing camera:', error);
-        addSystemMessage(`Failed to access camera: ${error.message}`);
-
-        // Log to console
-        addConsoleEntry('error', 'Camera access failed', {
-            error: error.message,
-            name: error.name
-        }, '⚠️', 'system');
+            // Start sending frames every 1s (same as your original captureImageBtn flow)
+            captureAndSendFrame(); // immediate first capture
+            liveFeedInterval = setInterval(captureAndSendFrame, 1000);
+        } catch (e) {
+            console.error("Camera error:", e);
+            setMsg("Camera access denied. Check browser permissions.");
+        }
     }
 }
 
-// Close camera modal and stop preview
-function closeCameraPreview() {
-    // Stop the camera stream
-    if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-        cameraStream = null;
-    }
-
-    if (liveFeedInterval) {
-        // Stop the live feed timer
-        clearInterval(liveFeedInterval);
-        liveFeedInterval = null;
-    }
-    // Clear the video source
-    cameraPreview.srcObject = null;
-
-    // Hide the modal
-    cameraModal.classList.remove('show');
-}
-
-// Hides camera modal, still active in background
-function hideCameraPreview() {
-    // Seems like when it's not actively shown, browser doesn't fetch new feed anymore
-    // cameraModal.style.transform = "translateX(-10000px)";
-    cameraModal.classList.remove('show');
-    cameraPreview.play(); // Force cameraPreview to continue
-}
-
-// let pendingImageRequest = false; // State to determine if we should send the current image
-
-// Capture image from the live preview
-function captureImageFromPreview() {
-    if (!cameraStream) {
-        addSystemMessage('No camera stream available');
-        return;
-    }
-
-    // Prevent 1008 due to tool while camera feed
-    // if (isToolRunning) {
-    //     console.warn("Tool is executed on the backend. Image capture pasued to prevent err 1008")
-    //     return;
-    // }
+function captureAndSendFrame() {
+    const feed = $("#cam-feed");
+    if (!feed.srcObject || isToolRunning) return;
 
     try {
-        // Create canvas to capture the frame
-        const canvas = document.createElement('canvas');
-        canvas.width = cameraPreview.videoWidth;
-        canvas.height = cameraPreview.videoHeight;
-        const context = canvas.getContext('2d');
+        const canvas = document.createElement("canvas");
+        canvas.width = feed.videoWidth;
+        canvas.height = feed.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(feed, 0, 0, canvas.width, canvas.height);
 
-        // Draw current video frame to canvas
-        context.drawImage(cameraPreview, 0, 0, canvas.width, canvas.height);
-
-        // Convert canvas to data URL for display
-        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.85) // Bump to 1.0, costly but best quality
-
-        // Display the captured image in the chat
-        // FIXME: update chat only when new frame is processed by ai, else don't display
-        // const imageBubble = createImageBubble(imageDataUrl, true);
-        // messagesDiv.appendChild(imageBubble);
-        // scrollToBottom();
-
-        // Convert canvas to blob for sending to server
-        canvas.toBlob((blob) => {
-            //TODO: might not need toBlob, if we're just sending the base64 data, can use the imageDataUrl above
-            // Convert blob to base64 for sending to server
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64data = reader.result.split(',')[1]; // Remove data:image/jpeg;base64, prefix
-                // if (!pendingImageRequest) {
-                //     pendingImageRequest = true;
-                //     sendImage(base64data); // Updating in webstock.onmessage callback
-                // }
-                sendImage(base64data); // have the backend handle the turn blocking instead of frontend js
-            };
-            reader.readAsDataURL(blob);
-
-            // Log to console
-            addConsoleEntry('outgoing', `Image captured: ${blob.size} bytes (JPEG)`, {
-                size: blob.size,
-                type: 'image/jpeg',
-                dimensions: `${canvas.width}x${canvas.height}`
-            }, '📷', 'user');
-        }, 'image/jpeg', 1.00);
-
-        // Hide the camera modal, keep feed active in background
-        hideCameraPreview()
-
-    } catch (error) {
-        console.error('Error capturing image:', error);
-        addSystemMessage(`Failed to capture image: ${error.message}`);
-
-        // Log to console
-        addConsoleEntry('error', 'Image capture failed', {
-            error: error.message,
-            name: error.name
-        }, '⚠️', 'system');
+        canvas.toBlob(
+            (blob) => {
+                if (!blob) return;
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64data = reader.result.split(",")[1];
+                    sendImage(base64data);
+                };
+                reader.readAsDataURL(blob);
+            },
+            "image/jpeg",
+            0.85
+        );
+    } catch (e) {
+        console.error("Frame capture error:", e);
     }
 }
 
-// Send image to server
 function sendImage(base64Image) {
     if (websocket && websocket.readyState === WebSocket.OPEN) {
-        const jsonMessage = JSON.stringify({
-            type: "image",
-            data: base64Image,
-            mimeType: "image/jpeg"
-        });
-        websocket.send(jsonMessage);
-        console.log("[CLIENT TO AGENT] Sent image");
+        websocket.send(
+            JSON.stringify({
+                type: "image",
+                data: base64Image,
+                mimeType: "image/jpeg",
+            })
+        );
+        console.log("[CLIENT->AGENT] Sent image frame");
     }
 }
 
-// Event listeners
-cameraButton.addEventListener("click", openCameraPreview);
-closeCameraModal.addEventListener("click", closeCameraPreview);
-cancelCamera.addEventListener("click", closeCameraPreview);
-
-// TODO: idle timeout for camera feed/audio listener
-
-let liveFeedInterval = null;
-
-captureImageBtn.addEventListener("click", () => {
-    if (liveFeedInterval) return; // Prevent spawning many timers for the same feed
-
-    captureImageFromPreview(); // Run once immediately before waiting for next timer
-    liveFeedInterval = setInterval(captureImageFromPreview, 1000);
-});
-
-// Close modal when clicking outside of it
-cameraModal.addEventListener("click", (event) => {
-    if (event.target === cameraModal) {
-        closeCameraPreview();
-    }
-});
-
-/**
- * Audio handling
- */
+// ══════════════════════════════════════════════════════════════
+// ── AUDIO ──
+// ══════════════════════════════════════════════════════════════
 
 let audioPlayerNode;
 let audioPlayerContext;
@@ -1034,18 +738,14 @@ let audioRecorderNode;
 let audioRecorderContext;
 let micStream;
 
-// Import the audio worklets
 import { startAudioPlayerWorklet } from "./audio-player.js";
 import { startAudioRecorderWorklet } from "./audio-recorder.js";
 
-// Start audio
 function startAudio() {
-    // Start audio output
     startAudioPlayerWorklet().then(([node, ctx]) => {
         audioPlayerNode = node;
         audioPlayerContext = ctx;
     });
-    // Start audio input
     startAudioRecorderWorklet(audioRecorderHandler).then(
         ([node, ctx, stream]) => {
             audioRecorderNode = node;
@@ -1055,36 +755,71 @@ function startAudio() {
     );
 }
 
-// Start the audio only when the user clicked the button
-// (due to the gesture requirement for the Web Audio API)
-const startAudioButton = document.getElementById("startAudioButton");
-startAudioButton.addEventListener("click", () => {
-    startAudioButton.disabled = true;
-    startAudio();
-    is_audio = true;
-    addSystemMessage("Audio mode enabled - you can now speak to the agent");
-
-    // Log to console
-    addConsoleEntry('outgoing', 'Audio Mode Enabled', {
-        status: 'Audio worklets started',
-        message: 'Microphone active - audio input will be sent to agent'
-    }, '🎤', 'system');
-});
-
-// Audio recorder handler
 function audioRecorderHandler(pcmData) {
-    // Block if tool is running
-    // if (isToolRunning) {
-    //     return;
-    // }
-
     if (websocket && websocket.readyState === WebSocket.OPEN && is_audio) {
-        // Send audio as binary WebSocket frame (more efficient than base64 JSON)
         websocket.send(pcmData);
-        console.log("[CLIENT TO AGENT] Sent audio chunk: %s bytes", pcmData.byteLength);
-
-        // Log to console panel (optional, can be noisy with frequent audio chunks)
-        // addConsoleEntry('outgoing', `Audio chunk: ${pcmData.byteLength} bytes`);
     }
 }
 
+// ══════════════════════════════════════════════════════════════
+// ── EVENT WIRING ──
+// ══════════════════════════════════════════════════════════════
+
+// Progress toggle
+$("#prog-toggle").addEventListener("click", function () {
+    progressOpen = !progressOpen;
+    $("#progress").classList.toggle("shut", !progressOpen);
+});
+
+// Camera button
+$("#btn-cam").addEventListener("click", function () {
+    // Close parts popup when switching to camera
+    if (partsOpen) {
+        partsOpen = false;
+        $("#parts-popup").classList.remove("open");
+        $("#btn-parts").classList.remove("on");
+    }
+    toggleCam();
+});
+
+// Parts reference
+$("#btn-parts").addEventListener("click", toggleParts);
+$("#popup-close").addEventListener("click", toggleParts);
+
+// Part detail modal
+$("#det-close").addEventListener("click", closeDetail);
+$("#detail-overlay").addEventListener("click", function (e) {
+    if (e.target === e.currentTarget) closeDetail();
+});
+
+// Image overlay
+$("#image-close").addEventListener("click", closeImagePopup);
+$("#image-overlay").addEventListener("click", function (e) {
+    if (e.target === e.currentTarget) closeImagePopup();
+});
+
+// Speech pill — starts audio on first tap, then acts as status indicator
+let audioStarted = false;
+$("#speech-pill").addEventListener("click", function () {
+    if (!audioStarted) {
+        audioStarted = true;
+        startAudio();
+        is_audio = true;
+        setMsg("Audio enabled \u2014 start speaking to begin your build.");
+        setSpeech("idle");
+        console.log("Audio mode enabled");
+    }
+});
+
+// Share button — opens report page in new tab
+$("#btn-share").addEventListener("click", function () {
+    window.open("/report/page", "_blank");
+});
+
+// ══════════════════════════════════════════════════════════════
+// ── INIT ──
+// ══════════════════════════════════════════════════════════════
+
+renderSteps();
+renderParts();
+connectWebsocket();
